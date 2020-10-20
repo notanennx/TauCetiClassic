@@ -313,17 +313,9 @@
 					to_chat(M, "Your character may now <b>walk</b> at the discretion of their targeter.")
 					if(!target_can_run)
 						to_chat(M, "<span class='warning'>Your move intent is now set to walk, as your targeter permits it.</span>")
-						M.set_m_intent("walk")
+						M.set_m_intent(MOVE_INTENT_WALK)
 				else
 					to_chat(M, "<span class='warning'><b>Your character will now be shot if they move.</b></span>")
-
-/mob/living/proc/set_m_intent(intent)
-	if (intent != "walk" && intent != "run")
-		return 0
-	m_intent = intent
-	if(hud_used)
-		if (hud_used.move_intent)
-			hud_used.move_intent.icon_state = intent == "walk" ? "walking" : "running"
 
 /client/verb/AllowTargetRun()
 	set hidden=1
@@ -341,7 +333,7 @@
 		usr.gun_run_icon.name = "[target_can_run ? "Disallow" : "Allow"] Running"
 
 	//Handling change for all the guns on client
-	for(var/obj/item/weapon/gun/G in src)
+	for(var/obj/item/weapon/gun/G in mob)
 		G.lock_time = world.time + 5
 		if(G.target)
 			for(var/mob/living/M in G.target)
@@ -365,7 +357,7 @@
 		usr.item_use_icon.name = "[target_can_click ? "Disallow" : "Allow"] Item Use"
 
 	//Handling change for all the guns on client
-	for(var/obj/item/weapon/gun/G in src)
+	for(var/obj/item/weapon/gun/G in mob)
 		G.lock_time = world.time + 5
 		if(G.target)
 			for(var/mob/living/M in G.target)

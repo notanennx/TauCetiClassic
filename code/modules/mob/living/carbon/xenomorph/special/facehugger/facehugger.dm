@@ -124,8 +124,8 @@
 	if (sterile)
 		to_chat(user, "<span class='danger'>It looks like the proboscis has been removed.</span>")
 
-/obj/item/clothing/mask/facehugger/attackby(obj/item/O,mob/m, params)
-	if(O.force)
+/obj/item/clothing/mask/facehugger/attackby(obj/item/I, mob/user, params)
+	if(I.force)
 		Die()
 
 /obj/item/clothing/mask/facehugger/attack_hand(mob/user)
@@ -162,8 +162,9 @@
 /obj/item/clothing/mask/facehugger/equipped(mob/living/carbon/C)
 	Attach(C)
 
-/obj/item/clothing/mask/facehugger/Crossed(mob/living/carbon/C)
-	return HasProximity(C)
+/obj/item/clothing/mask/facehugger/Crossed(atom/movable/AM)
+	..()
+	return HasProximity(AM)
 
 /obj/item/clothing/mask/facehugger/HasProximity(mob/living/carbon/C)
 	if(!current_hugger)
@@ -295,7 +296,9 @@
 			new_embryo.baby = new_xeno
 			new_embryo.controlled_by_ai = FALSE
 			new_xeno.key = FH.key
+			new_xeno.mind.add_antag_hud(ANTAG_HUD_ALIEN, "hudalien", new_xeno)
 		target.status_flags |= XENO_HOST
+		target.med_hud_set_status()
 
 	else
 		target.visible_message("<span class='danger'>[src] violates [target]'s face!</span>", "<span class='userdanger'>[src] violates your face!</span>")

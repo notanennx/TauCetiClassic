@@ -11,6 +11,7 @@ INITIALIZE_IMMEDIATE(/mob/dead)
 	initialized = TRUE
 
 	mob_list += src
+	prepare_huds()
 
 	return INITIALIZE_HINT_NORMAL
 
@@ -19,3 +20,6 @@ INITIALIZE_IMMEDIATE(/mob/dead)
 
 /mob/dead/gib()		//ghosts can't be gibbed.
 	return
+
+/mob/dead/incapacitated(restrained_type = ARMS)
+	return !IsAdminGhost(src)

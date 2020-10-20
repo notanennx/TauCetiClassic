@@ -108,7 +108,7 @@
 /obj/structure/closet/secure_closet/velocity_security/full
 
 /obj/structure/closet/secure_closet/velocity_security/full/PopulateContents()
-	new /obj/item/clothing/glasses/sunglasses/sechud(src)
+	new /obj/item/clothing/glasses/sunglasses/hud/sechud(src)
 	new /obj/item/device/flash(src)
 	new /obj/item/weapon/reagent_containers/spray/pepper(src)
 	new /obj/item/weapon/storage/box/handcuffs(src)
@@ -124,7 +124,7 @@
 	new /obj/item/weapon/storage/backpack/satchel/sec(src)
 	new /obj/item/weapon/storage/belt/security(src)
 	new /obj/item/clothing/gloves/fluff/chal_appara_1(src)
-	new /obj/item/clothing/shoes/combat(src)
+	new /obj/item/clothing/shoes/boots/combat(src)
 	new /obj/item/clothing/gloves/combat(src)
 	new /obj/item/clothing/shoes/sandal(src)
 	new /obj/item/clothing/under/fluff/olddressuniform(src)

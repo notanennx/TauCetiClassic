@@ -1,6 +1,6 @@
 //NOTE: Breathing happens once per FOUR TICKS, unless the last breath fails. In which case it happens once per ONE TICK! So oxyloss healing is done once per 4 ticks while oxyloss damage is applied once per tick!
 #define HUMAN_MAX_OXYLOSS 1 //Defines how much oxyloss humans can get per tick. A tile with no air at all (such as space) applies this value, otherwise it's a percentage of it.
-#define HUMAN_CRIT_MAX_OXYLOSS (SSmob.wait/30) //The amount of damage you'll get when in critical condition. We want this to be a 5 minute deal = 300s. There are 50HP to get through, so (1/6)*last_tick_duration per second. Breaths however only happen every 4 ticks.
+#define HUMAN_CRIT_MAX_OXYLOSS (SSmobs.wait/30) //The amount of damage you'll get when in critical condition. We want this to be a 5 minute deal = 300s. There are 50HP to get through, so (1/6)*last_tick_duration per second. Breaths however only happen every 4 ticks.
 
 #define HEAT_DAMAGE_LEVEL_1 2 //Amount of damage applied when your body temperature just passes the 360.15k safety point
 #define HEAT_DAMAGE_LEVEL_2 4 //Amount of damage applied when your body temperature passes the 400K point
@@ -54,14 +54,13 @@
 	life_tick++
 	var/datum/gas_mixture/environment = loc.return_air()
 
-	if(life_tick%30==15)
-		hud_updateflag = 1022
-
 	voice = GetVoice()
+
+	handle_combat()
 
 	//No need to update all of these procs if the guy is dead.
 	if(stat != DEAD && !IS_IN_STASIS(src))
-		if(SSmob.times_fired%4==2 || failed_last_breath || (health < config.health_threshold_crit)) 	//First, resolve location and get a breath
+		if(SSmobs.times_fired%4==2 || failed_last_breath || (health < config.health_threshold_crit)) 	//First, resolve location and get a breath
 			breathe() 				//Only try to take a breath every 4 ticks, unless suffocating
 
 		else //Still give containing object the chance to interact
@@ -168,7 +167,7 @@
 			visible_message("<span class='danger'>[src] starts having a seizure!</span>", self_message = "<span class='warning'>You have a seizure!</span>")
 			Paralyse(10)
 			make_jittery(1000)
-	if (disabilities & COUGHING || HAS_TRAIT(src, TRAIT_COUGH))
+	if ((disabilities & COUGHING || HAS_TRAIT(src, TRAIT_COUGH)) && !reagents.has_reagent("dextromethorphan"))
 		if ((prob(5) && paralysis <= 1))
 			drop_item()
 			spawn( 0 )
@@ -183,10 +182,7 @@
 					if(1)
 						emote("twitch")
 					if(2 to 3)
-						if(config.rus_language)
-							say(pick(CYRILLIC_TRAIT_TOURETTE))
-						else
-							say(pick("SHIT", "PISS", "FUCK", "CUNT", "COCKSUCKER", "MOTHERFUCKER", "TITS"))
+						say(pick("ГОВНО", "ЖОПА", "ЕБАЛ", "ПИДАРА-АС", "ХУЕСОС", "СУКА", "МАТЬ ТВОЮ","А НУ ИДИ СЮДА","УРОД"))
 				var/old_x = pixel_x
 				var/old_y = pixel_y
 				pixel_x += rand(-2,2)
@@ -247,22 +243,13 @@
 
 			if(13 to 18)
 				if(getBrainLoss() >= 60 && !HAS_TRAIT(src, TRAIT_STRONGMIND))
-					if(config.rus_language)//TODO:CYRILLIC dictionary?
-						switch(rand(1, 3))
-							if(1)
-								say(pick(CYRILLIC_BRAINDAMAGE_1))
-							if(2)
-								say(pick(CYRILLIC_BRAINDAMAGE_2))
-							if(3)
-								emote("drool")
-					else
-						switch(rand(1, 3))
-							if(1)
-								say(pick("IM A PONY NEEEEEEIIIIIIIIIGH", "without oxigen blob don't evoluate?", "CAPTAINS A COMDOM", "[pick("", "that faggot traitor")] [pick("joerge", "george", "gorge", "gdoruge")] [pick("mellens", "melons", "mwrlins")] is grifing me HAL;P!!!", "can u give me [pick("telikesis","halk","eppilapse")]?", "THe saiyans screwed", "Bi is THE BEST OF BOTH WORLDS>", "I WANNA PET TEH monkeyS", "stop grifing me!!!!", "SOTP IT#"))
-							if(2)
-								say(pick("FUS RO DAH","fucking 4rries!", "stat me", ">my face", "roll it easy!", "waaaaaagh!!!", "red wonz go fasta", "FOR TEH EMPRAH", "lol2cat", "dem dwarfs man, dem dwarfs", "SPESS MAHREENS", "hwee did eet fhor khayosss", "lifelike texture ;_;", "luv can bloooom", "PACKETS!!!"))
-							if(3)
-								emote("drool")
+					switch(rand(1, 3))
+						if(1)
+							say(pick("азазаа!", "Я не смалгей!", "ХОС ХУЕСОС!", "[pick("", "ебучий трейтор")] [pick("морган", "моргун", "морген", "мрогун")] [pick("джемес", "джамес", "джаемес")] грефонет миня шпасит;е!!!", "ти можыш дать мне [pick("тилипатию","халку","эпиллепсию")]?", "ХАчу стать боргом!", "ПОЗОвите детектива!", "Хочу стать мартышкой!", "ХВАТЕТ ГРИФОНЕТЬ МИНЯ!!!!", "ШАТОЛ!"))
+						if(2)
+							say(pick("Как минять руки?","ебучие фурри!", "Подебил", "Проклятые трапы!", "лолка!", "вжжжжжжжжж!!!", "джеф скваааад!", "БРАНДЕНБУРГ!", "БУДАПЕШТ!", "ПАУУУУУК!!!!", "ПУКАН БОМБАНУЛ!", "ПУШКА", "РЕВА ПОЦОНЫ", "Пати на хопа!"))
+						if(3)
+							emote("drool")
 
 /mob/living/carbon/human/proc/handle_mutations_and_radiation()
 
@@ -352,7 +339,7 @@
 	var/datum/gas_mixture/breath
 
 	//First, check if we can breathe at all
-	if(handle_drowning() || health < config.health_threshold_crit && !reagents.has_reagent("inaprovaline"))
+	if((handle_drowning() || health < config.health_threshold_crit) && !reagents.has_reagent("inaprovaline") && !HAS_TRAIT(src, TRAIT_AV))
 		losebreath = max(2, losebreath + 1)
 
 	if(losebreath>0) //Suffocating so do not take a breath
@@ -383,22 +370,6 @@
 
 				breath = loc.remove_air(breath_moles)
 
-				if(istype(wear_mask, /obj/item/clothing/mask/gas) && breath)
-					var/obj/item/clothing/mask/gas/G = wear_mask
-					var/datum/gas_mixture/filtered = new
-					for(var/g in  G.filter)
-						if(breath.gas[g])
-							filtered.gas[g] = breath.gas[g] * G.gas_filter_strength
-							breath.gas[g] -= filtered.gas[g]
-
-					breath.update_values()
-					filtered.update_values()
-
-				if(!is_lung_ruptured())
-					if(!breath || breath.total_moles < BREATH_MOLES / 5 || breath.total_moles > BREATH_MOLES * 5)
-						if(prob(5))
-							rupture_lung()
-
 				// Handle filtering
 				var/block = 0
 				if(wear_mask)
@@ -420,6 +391,22 @@
 								if(smoke)
 									smoke.reagents.copy_to(src, 10) // I dunno, maybe the reagents enter the blood stream through the lungs?
 							break // If they breathe in the nasty stuff once, no need to continue checking
+
+			if(istype(wear_mask, /obj/item/clothing/mask/gas) && breath)
+				var/obj/item/clothing/mask/gas/G = wear_mask
+				var/datum/gas_mixture/filtered = new
+				for(var/g in  G.filter)
+					if(breath.gas[g])
+						filtered.gas[g] = breath.gas[g] * G.gas_filter_strength
+						breath.gas[g] -= filtered.gas[g]
+
+				breath.update_values()
+				filtered.update_values()
+
+			if(!is_lung_ruptured())
+				if(!breath || breath.total_moles < BREATH_MOLES / 5 || breath.total_moles > BREATH_MOLES * 5)
+					if(prob(5))
+						rupture_lung()
 
 		else //Still give containing object the chance to interact
 			if(istype(loc, /obj))
@@ -559,7 +546,7 @@
 	if(toxins_pp > safe_toxins_max)
 		var/ratio = (poison/safe_toxins_max) * 10
 		if(reagents)
-			reagents.add_reagent("toxin", CLAMP(ratio, MIN_TOXIN_DAMAGE, MAX_TOXIN_DAMAGE))
+			reagents.add_reagent("toxin", clamp(ratio, MIN_TOXIN_DAMAGE, MAX_TOXIN_DAMAGE))
 		breath.adjust_gas(species.poison_type, -poison / 6, update = FALSE) //update after
 		throw_alert("tox_in_air", /obj/screen/alert/tox_in_air)
 	else
@@ -647,15 +634,16 @@
 
 		//Body temperature adjusts depending on surrounding atmosphere based on your thermal protection
 		var/temp_adj = 0
-		if(!on_fire && !(is_type_organ(O_LUNGS, /obj/item/organ/internal/lungs/ipc) && is_bruised_organ(O_LUNGS))) //If you're on fire, you do not heat up or cool down based on surrounding gases. IPC's lungs are the cooling element. If it's broken, IPCs should cool down.
+		//If you're on fire, you do not heat up or cool down based on surrounding gases.
+		if(!on_fire)
 			if(loc_temp < bodytemperature)			//Place is colder than we are
 				var/thermal_protection = get_cold_protection(loc_temp) //This returns a 0 - 1 value, which corresponds to the percentage of protection based on what you're wearing and what you're exposed to.
 				if(thermal_protection < 1)
-					temp_adj = (1-thermal_protection) * ((loc_temp - bodytemperature) / BODYTEMP_COLD_DIVISOR)	//this will be negative
+					temp_adj = (1 - thermal_protection) * ((loc_temp - bodytemperature) / BODYTEMP_COLD_DIVISOR)	//this will be negative
 			else if (loc_temp > bodytemperature)			//Place is hotter than we are
 				var/thermal_protection = get_heat_protection(loc_temp) //This returns a 0 - 1 value, which corresponds to the percentage of protection based on what you're wearing and what you're exposed to.
 				if(thermal_protection < 1)
-					temp_adj = (1-thermal_protection) * ((loc_temp - bodytemperature) / BODYTEMP_HEAT_DIVISOR)
+					temp_adj = (1 - thermal_protection) * ((loc_temp - bodytemperature) / BODYTEMP_HEAT_DIVISOR)
 
 			//Use heat transfer as proportional to the gas density. However, we only care about the relative density vs standard 101 kPa/20 C air. Therefore we can use mole ratios
 			var/relative_density = (environment.total_moles / environment.volume) / (MOLES_CELLSTANDARD / CELL_VOLUME)
@@ -784,7 +772,6 @@
 
 /mob/living/carbon/human/proc/stabilize_body_temperature()
 	if (species.flags[IS_SYNTHETIC])
-		bodytemperature += species.synth_temp_gain		//just keep putting out heat.
 		return
 
 	var/body_temperature_difference = species.body_temperature - bodytemperature
@@ -1046,7 +1033,7 @@
 			update_inv_wear_suit()
 	else
 		if((has_quirk(/datum/quirk/fatness) || overeatduration >= 500) && isturf(loc))
-			if(!species.flags[IS_SYNTHETIC] && !species.flags[IS_PLANT])
+			if(!species.flags[IS_SYNTHETIC] && !species.flags[IS_PLANT] && !species.flags[NO_FAT])
 				ADD_TRAIT(src, TRAIT_FAT, OBESITY_TRAIT)
 				update_body()
 				update_mutantrace()
@@ -1237,18 +1224,8 @@
 	return 1
 
 /mob/living/carbon/human/handle_regular_hud_updates()
-	if(hud_updateflag)//? Below ?
-		handle_hud_list()
-
 	if(!client)
 		return 0
-
-	if(hud_updateflag)//Is there any reason for 2nd check? ~Zve
-		handle_hud_list()
-
-	for(var/image/hud in client.images)
-		if(copytext(hud.icon_state,1,4) == "hud") //ugly, but icon comparison is worse, I believe
-			client.images.Remove(hud)
 
 	if(stat == UNCONSCIOUS && health <= 0)
 		//Critical damage passage overlay
@@ -1351,26 +1328,6 @@
 				else
 					see_invisible = SEE_INVISIBLE_MINIMUM
 
-/* HUD shit goes here, as long as it doesn't modify sight flags */
-// The purpose of this is to stop xray and w/e from preventing you from using huds -- Love, Doohl
-
-			if(istype(glasses, /obj/item/clothing/glasses/sunglasses/sechud))
-				var/obj/item/clothing/glasses/sunglasses/sechud/O = glasses
-				if(O.hud)
-					O.hud.process_hud(src)
-				if(!druggy)
-					see_invisible = SEE_INVISIBLE_LIVING
-			else if(istype(glasses, /obj/item/clothing/glasses/hud))
-				var/obj/item/clothing/glasses/hud/O = glasses
-				O.process_hud(src)
-				if(!druggy)
-					see_invisible = SEE_INVISIBLE_LIVING
-			else if(istype(glasses, /obj/item/clothing/glasses/sunglasses/hud/secmed))
-				var/obj/item/clothing/glasses/sunglasses/hud/secmed/O = glasses
-				O.process_hud(src)
-				if(!druggy)
-					see_invisible = SEE_INVISIBLE_LIVING
-
 		else if(!seer)
 			see_invisible = SEE_INVISIBLE_LIVING
 
@@ -1378,12 +1335,7 @@
 			var/obj/item/clothing/mask/gas/voice/space_ninja/O = wear_mask
 			switch(O.mode)
 				if(0)
-					var/target_list[] = list()
-					for(var/mob/living/target in oview(src))
-						if( target.mind&&(target.mind.special_role||issilicon(target)) )//They need to have a mind.
-							target_list += target
-					if(target_list.len)//Everything else is handled by the ninja mask proc.
-						O.assess_targets(target_list, src)
+					O.togge_huds()
 					if(!druggy)
 						see_invisible = SEE_INVISIBLE_LIVING
 				if(1)
@@ -1404,6 +1356,10 @@
 
 		if(changeling_aug)
 			sight |= SEE_MOBS
+			see_in_dark = 8
+			see_invisible = SEE_INVISIBLE_MINIMUM
+
+		if(blinded)
 			see_in_dark = 8
 			see_invisible = SEE_INVISIBLE_MINIMUM
 
@@ -1556,32 +1512,28 @@
 	return 1
 
 /mob/living/carbon/human/update_sight()
-	sightglassesmod = null
 	if(stat == DEAD)
 		set_EyesVision(transition_time = 0)
 		return
+	if(blinded)
+		set_EyesVision("greyscale")
+		return
+	if(daltonism)
+		set_EyesVision(sightglassesmod)
+		return
 	var/obj/item/clothing/glasses/G = glasses
-	if(istype(G) && G.active)
-		if(istype(glasses, /obj/item/clothing/glasses/meson))
-			sightglassesmod = "meson"
-		else if(istype(glasses, /obj/item/clothing/glasses/night) && !istype(glasses, /obj/item/clothing/glasses/night/shadowling))
-			sightglassesmod = "nvg"
-		else if(istype(glasses, /obj/item/clothing/glasses/thermal))
-			sightglassesmod = "thermal"
-		else if(istype(glasses, /obj/item/clothing/glasses/science))
-			sightglassesmod = "sci"
-		else if(istype(glasses, /obj/item/clothing/glasses/sunglasses/noir))
-			sightglassesmod = "greyscale"
+	if(istype(G) && G.sightglassesmod && (G.active || !G.toggleable))
+		sightglassesmod = G.sightglassesmod
+	else
+		sightglassesmod = null
 
 	if(species.nighteyes)
-		if(sightglassesmod)
-			sightglassesmod = "nightsight_glasses"
-		else
-			var/light_amount = 0
-			var/turf/T = get_turf(src)
-			light_amount = round(T.get_lumcount()*10)
-			if(light_amount > 1)
-				sightglassesmod = null
+		var/light_amount = 0
+		var/turf/T = get_turf(src)
+		light_amount = round(T.get_lumcount()*10)
+		if(light_amount < 1)
+			if(sightglassesmod)
+				sightglassesmod = "nightsight_glasses"
 			else
 				sightglassesmod = "nightsight"
 	set_EyesVision(sightglassesmod)
@@ -1653,7 +1605,7 @@
 					stomach_contents.Remove(M)
 					qdel(M)
 					continue
-				if(SSmob.times_fired%3==1)
+				if(SSmobs.times_fired%3==1)
 					if(!(M.status_flags & GODMODE))
 						M.adjustBruteLoss(5)
 					nutrition += 10
@@ -1735,6 +1687,16 @@
 	if(species && species.flags[NO_BLOOD])
 		return PULSE_NONE //No blood, no pulse.
 
+	if(HAS_TRAIT(src, TRAIT_CPB))
+		return PULSE_NORM
+
+	var/obj/item/organ/internal/heart/IO = organs_by_name[O_HEART]
+	if(IO.heart_status == HEART_FAILURE)
+		return PULSE_NONE
+
+	if(IO.heart_status == HEART_FIBR)
+		return PULSE_SLOW
+
 	if(stat == DEAD)
 		return PULSE_NONE	//that's it, you're dead, nothing can influence your pulse
 
@@ -1765,175 +1727,8 @@
 /*
 	Called by life(), instead of having the individual hud items update icons each tick and check for status changes
 	we only set those statuses and icons upon changes.  Then those HUD items will simply add those pre-made images.
-	This proc below is only called when those HUD elements need to change as determined by the mobs hud_updateflag.
+
 */
-
-
-/mob/living/carbon/human/proc/handle_hud_list()
-
-	if(hud_updateflag & 1 << HEALTH_HUD)
-		var/image/holder = hud_list[HEALTH_HUD]
-		if(stat == DEAD)
-			holder.icon_state = "hudhealth-100" 	// X_X
-		else
-			holder.icon_state = "hud[RoundHealth(health)]"
-
-		hud_list[HEALTH_HUD] = holder
-
-	if(hud_updateflag & 1 << STATUS_HUD)
-		var/foundVirus = 0
-		for(var/datum/disease/D in viruses)
-			if(!D.hidden[SCANNER])
-				foundVirus++
-		for (var/ID in virus2)
-			if (ID in virusDB)
-				foundVirus = 1
-				break
-
-		var/image/holder = hud_list[STATUS_HUD]
-		var/image/holder2 = hud_list[STATUS_HUD_OOC]
-		if(stat == DEAD)
-			holder.icon_state = "huddead"
-			holder2.icon_state = "huddead"
-		else if(status_flags & XENO_HOST)
-			holder.icon_state = "hudxeno"
-			holder2.icon_state = "hudxeno"
-		else if(foundVirus || iszombie(src))
-			holder.icon_state = "hudill"
-		else if(has_brain_worms())
-			var/mob/living/simple_animal/borer/B = has_brain_worms()
-			if(B.controlling)
-				holder.icon_state = "hudbrainworm"
-			else
-				holder.icon_state = "hudhealthy"
-			holder2.icon_state = "hudbrainworm"
-		else
-			holder.icon_state = "hudhealthy"
-			if(virus2.len)
-				holder2.icon_state = "hudill"
-			else
-				holder2.icon_state = "hudhealthy"
-
-		hud_list[STATUS_HUD] = holder
-		hud_list[STATUS_HUD_OOC] = holder2
-
-	if(hud_updateflag & 1 << ID_HUD)
-		var/image/holder = hud_list[ID_HUD]
-		if(wear_id)
-			var/obj/item/weapon/card/id/I = wear_id.GetID()
-			if(I)
-				holder.icon_state = "hud[ckey(I.GetJobName())]"
-			else
-				holder.icon_state = "hudunknown"
-		else
-			holder.icon_state = "hudunknown"
-
-
-		hud_list[ID_HUD] = holder
-
-	if(hud_updateflag & 1 << WANTED_HUD)
-		var/image/holder = hud_list[WANTED_HUD]
-		holder.icon_state = "hudblank"
-		var/perpname = name
-		if(wear_id)
-			var/obj/item/weapon/card/id/I = wear_id.GetID()
-			if(I)
-				perpname = I.registered_name
-
-		for(var/datum/data/record/E in data_core.general)
-			if(E.fields["name"] == perpname)
-				for (var/datum/data/record/R in data_core.security)
-					if((R.fields["id"] == E.fields["id"]) && (R.fields["criminal"] == "*Arrest*"))
-						holder.icon_state = "hudwanted"
-						break
-					else if((R.fields["id"] == E.fields["id"]) && (R.fields["criminal"] == "Incarcerated"))
-						holder.icon_state = "hudprisoner"
-						break
-					else if((R.fields["id"] == E.fields["id"]) && (R.fields["criminal"] == "Paroled"))
-						holder.icon_state = "hudparoled"
-						break
-					else if((R.fields["id"] == E.fields["id"]) && (R.fields["criminal"] == "Released"))
-						holder.icon_state = "hudreleased"
-						break
-		hud_list[WANTED_HUD] = holder
-
-	if(hud_updateflag & 1 << IMPLOYAL_HUD || hud_updateflag & 1 << IMPCHEM_HUD || hud_updateflag & 1 << IMPTRACK_HUD)
-		var/image/holder1 = hud_list[IMPTRACK_HUD]
-		var/image/holder2 = hud_list[IMPLOYAL_HUD]
-		var/image/holder3 = hud_list[IMPCHEM_HUD]
-
-		holder1.icon_state = "hudblank"
-		holder2.icon_state = "hudblank"
-		holder3.icon_state = "hudblank"
-
-		var/has_loyal_implant = FALSE
-		for(var/obj/item/weapon/implant/I in src)
-			if(I.implanted)
-				if(istype(I,/obj/item/weapon/implant/tracking))
-					holder1.icon_state = "hud_imp_tracking"
-				if(istype(I,/obj/item/weapon/implant/mindshield) && !has_loyal_implant)
-					if(istype(I,/obj/item/weapon/implant/mindshield/loyalty))
-						has_loyal_implant = TRUE
-						holder2.icon_state = "hud_imp_loyal"
-					else
-						holder2.icon_state = "hud_imp_mindshield"
-				if(istype(I,/obj/item/weapon/implant/chem))
-					holder3.icon_state = "hud_imp_chem"
-
-		hud_list[IMPTRACK_HUD] = holder1
-		hud_list[IMPLOYAL_HUD] = holder2
-		hud_list[IMPCHEM_HUD] = holder3
-
-	if(hud_updateflag & 1 << SPECIALROLE_HUD)
-		var/image/holder = hud_list[SPECIALROLE_HUD]
-		holder.icon_state = "hudblank"
-		if(mind)
-
-			switch(mind.special_role)
-				if("traitor","Syndicate")
-					holder.icon_state = "hudsyndicate"
-				if("Revolutionary")
-					holder.icon_state = "hudrevolutionary"
-				if("Head Revolutionary")
-					holder.icon_state = "hudheadrevolutionary"
-				if("Cultist")
-					holder.icon_state = "hudcultist"
-				if("Changeling")
-					holder.icon_state = "hudchangeling"
-				if("Wizard","Fake Wizard")
-					holder.icon_state = "hudwizard"
-				if("Death Commando")
-					holder.icon_state = "huddeathsquad"
-				if("Ninja")
-					holder.icon_state = "hudninja"
-				if("head_loyalist")
-					holder.icon_state = "hudloyalist"
-				if("loyalist")
-					holder.icon_state = "hudloyalist"
-				if("head_mutineer")
-					holder.icon_state = "hudmutineer"
-				if("mutineer")
-					holder.icon_state = "hudmutineer"
-				if("shadowling")
-					holder.icon_state = "hudshadowling"
-				if("thrall")
-					holder.icon_state = "hudthrall"
-				if("Clandestine Gang (A) Boss","Prima Gang (A) Boss","Zero-G Gang (A) Boss","Max Gang (A) Boss","Blasto Gang (A) Boss","Waffle Gang (A) Boss","North Gang (A) Boss","Omni Gang (A) Boss","Newton Gang (A) Boss","Cyber Gang (A) Boss","Donk Gang (A) Boss","Gene Gang (A) Boss","Gib Gang (A) Boss","Tunnel Gang (A) Boss","Diablo Gang (A) Boss","Psyke Gang (A) Boss","Osiron Gang (A) Boss")
-					holder.icon_state = "gang_boss_a"
-				if("Clandestine Gang (B) Boss","Prima Gang (B) Boss","Zero-G Gang (B) Boss","Max Gang (B) Boss","Blasto Gang (B) Boss","Waffle Gang (B) Boss","North Gang (B) Boss","Omni Gang (B) Boss","Newton Gang (B) Boss","Cyber Gang (B) Boss","Donk Gang (B) Boss","Gene Gang (B) Boss","Gib Gang (B) Boss","Tunnel Gang (B) Boss","Diablo Gang (B) Boss","Psyke Gang (B) Boss","Osiron Gang (B) Boss")
-					holder.icon_state = "gang_boss_b"
-				if("Clandestine Gang (A) Lieutenant","Prima Gang (A) Lieutenant","Zero-G Gang (A) Lieutenant","Max Gang (A) Lieutenant","Blasto Gang (A) Lieutenant","Waffle Gang (A) Lieutenant","North Gang (A) Lieutenant","Omni Gang (A) Lieutenant","Newton Gang (A) Lieutenant","Cyber Gang (A) Lieutenant","Donk Gang (A) Lieutenant","Gene Gang (A) Lieutenant","Gib Gang (A) Lieutenant","Tunnel Gang (A) Lieutenant","Diablo Gang (A) Lieutenant","Psyke Gang (A) Lieutenant","Osiron Gang (A) Lieutenant")
-					holder.icon_state = "lieutenant_a"
-				if("Clandestine Gang (B) Lieutenant","Prima Gang (B) Lieutenant","Zero-G Gang (B) Lieutenant","Max Gang (B) Lieutenant","Blasto Gang (B) Lieutenant","Waffle Gang (B) Lieutenant","North Gang (B) Lieutenant","Omni Gang (B) Lieutenant","Newton Gang (B) Lieutenant","Cyber Gang (B) Lieutenant","Donk Gang (B) Lieutenant","Gene Gang (B) Lieutenant","Gib Gang (B) Lieutenant","Tunnel Gang (B) Lieutenant","Diablo Gang (B) Lieutenant","Psyke Gang (B) Lieutenant","Osiron Gang (B) Lieutenant")
-					holder.icon_state = "lieutenant_b"
-				if("Clandestine Gang (A)","Prima Gang (A)","Zero-G Gang (A)","Max Gang (A)","Blasto Gang (A)","Waffle Gang (A)","North Gang (A)","Omni Gang (A)","Newton Gang (A)","Cyber Gang (A)","Donk Gang (A)","Gene Gang (A)","Gib Gang (A)","Tunnel Gang (A)","Diablo Gang (A)","Psyke Gang (A)","Osiron Gang (A)")
-					holder.icon_state = "gangster_a"
-				if("Clandestine Gang (B)","Prima Gang (B)","Zero-G Gang (B)","Max Gang (B)","Blasto Gang (B)","Waffle Gang (B)","North Gang (B)","Omni Gang (B)","Newton Gang (B)","Cyber Gang (B)","Donk Gang (B)","Gene Gang (B)","Gib Gang (B)","Tunnel Gang (B)","Diablo Gang (B)","Psyke Gang (B)","Osiron Gang (B)")
-					holder.icon_state = "gangster_b"
-
-			hud_list[SPECIALROLE_HUD] = holder
-	hud_updateflag = 0
-
 
 #undef HUMAN_MAX_OXYLOSS
 #undef HUMAN_CRIT_MAX_OXYLOSS

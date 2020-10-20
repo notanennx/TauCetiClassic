@@ -1,3 +1,6 @@
+/mob
+	hud_possible = list(ANTAG_HUD)
+
 /**
   * Delete a mob
   *
@@ -32,6 +35,7 @@
 	else
 		alive_mob_list += src
 	. = ..()
+	prepare_huds()
 
 /mob/proc/Cell()
 	set category = "Admin"
@@ -180,7 +184,7 @@
 	return
 
 /mob/proc/incapacitated(restrained_type = ARMS)
-	return
+	return FALSE
 
 /mob/proc/restrained()
 	return
@@ -205,7 +209,7 @@
 
 /mob/proc/ret_grab(obj/effect/list_container/mobl/L, flag)
 	var/list/grabs = GetGrabs()
-	if(!LAZYLEN(grabs))
+	if(!length(grabs))
 		if(!L)
 			return null
 		else
@@ -259,7 +263,7 @@
 	set name = "Add Note"
 	set category = "IC"
 
-	msg = sanitize(msg)
+	msg = replacetext(sanitize(msg, extra = FALSE), "\n", "<br>")
 
 	if(msg && mind)
 		mind.store_memory(msg)
@@ -289,10 +293,10 @@
 /mob/proc/print_flavor_text()
 	if(flavor_text && flavor_text != "")
 		var/msg = flavor_text
-		if(lentext(msg) <= 40)
+		if(length_char(msg) <= 40)
 			return "<span class='notice'>[msg]</span>"
 		else
-			return "<span class='notice'>[copytext(msg, 1, 37)]... <a href='byond://?src=\ref[src];flavor_more=1'>More...</a></span>"
+			return "<span class='notice'>[copytext_char(msg, 1, 37)]... <a href='byond://?src=\ref[src];flavor_more=1'>More...</a></span>"
 
 //mob verbs are faster than object verbs. See http://www.byond.com/forum/?post=1326139&page=2#comment8198716 for why this isn't atom/verb/examine()
 /mob/verb/examinate(atom/A as mob|obj|turf in view())
@@ -305,6 +309,7 @@
 
 	face_atom(A)
 	A.examine(src)
+	SEND_SIGNAL(A, COMSIG_PARENT_POST_EXAMINE, src)
 
 /mob/verb/pointed(atom/A as mob|obj|turf in oview())
 	set name = "Point To"
@@ -312,7 +317,7 @@
 
 	if(!usr || !isturf(usr.loc))
 		return
-	if(usr.stat || usr.restrained())
+	if(usr.incapacitated())
 		return
 	if(usr.status_flags & FAKEDEATH)
 		return
@@ -346,10 +351,10 @@
 	if(!abandon_allowed)
 		to_chat(usr, "<span class='notice'>Respawn is disabled.</span>")
 		return
-	if(stat != DEAD || !ticker)
+	if(stat != DEAD || !SSticker)
 		to_chat(usr, "<span class='notice'><B>You must be dead to use this!</B></span>")
 		return
-	if(ticker && istype(ticker.mode, /datum/game_mode/meteor))
+	if(SSticker && istype(SSticker.mode, /datum/game_mode/meteor))
 		to_chat(usr, "<span class='notice'>Respawn is disabled for this roundtype.</span>")
 		return
 	else
@@ -439,7 +444,7 @@
 	set category = "OOC"
 	reset_view(null)
 	unset_machine()
-	if(istype(src, /mob/living))
+	if(isliving(src))
 		var/mob/living/M = src
 		if(M.cameraFollow)
 			M.cameraFollow = null
@@ -468,9 +473,9 @@
 			show_inv(machine)
 
 	if(href_list["flavor_more"])
-		usr << browse(text("<HTML><HEAD><TITLE>[]</TITLE></HEAD><BODY><TT>[]</TT></BODY></HTML>", name, entity_ja(flavor_text)), text("window=[];size=500x200", name))
-		onclose(usr, "[name]")
-
+		var/datum/browser/popup = new(usr, "window=flavor [name]", "Flavor [name]", 500, 200, ntheme = CSS_THEME_LIGHT)
+		popup.set_content(flavor_text)
+		popup.open()
 	return
 
 
@@ -499,11 +504,14 @@
 
 //this and stop_pulling really ought to be /mob/living procs
 /mob/proc/start_pulling(atom/movable/AM)
-	if(!AM || !src || src == AM || !isturf(AM.loc))	//if there's no person pulling OR the person is pulling themself OR the object being pulled is inside something: abort!
+	if(!AM.can_be_pulled || src == AM || !isturf(AM.loc))	//if there's no person pulling OR the person is pulling themself OR the object being pulled is inside something: abort!
 		return
 	if(!AM.anchored)
 		if(ismob(AM))
 			var/mob/M = AM
+			if(get_size_ratio(M, src) > pull_size_ratio)
+				to_chat(src, "<span class=warning>You are too small in comparison to [M] to pull them!</span>")
+				return
 			if(M.buckled) // If we are trying to pull something that is buckled we will pull the thing its buckled to
 				start_pulling(M.buckled)
 				return
@@ -516,6 +524,11 @@
 			if(AM == pulling)
 				return
 			stop_pulling()
+
+		if(SEND_SIGNAL(src, COMSIG_LIVING_START_PULL, AM) & COMPONENT_PREVENT_PULL)
+			return
+		if(SEND_SIGNAL(AM, COMSIG_ATOM_START_PULL, src) & COMPONENT_PREVENT_PULL)
+			return
 
 		src.pulling = AM
 		AM.pulledby = src
@@ -543,8 +556,13 @@
 	set category = "IC"
 
 	if(pulling)
-		pulling.pulledby = null
-		pulling = null
+		SEND_SIGNAL(src, COMSIG_LIVING_STOP_PULL, pulling)
+		SEND_SIGNAL(pulling, COMSIG_ATOM_STOP_PULL, src)
+
+		// What if the signals above somehow deleted pulledby?
+		if(pulling)
+			pulling.pulledby = null
+			pulling = null
 		if(pullin)
 			pullin.update_icon(src)
 		count_pull_debuff()
@@ -653,8 +671,8 @@ note dizziness decrements automatically in the mob's Life() proc.
 			if(client.holder)
 				if (config.registration_panic_bunker_age)
 					stat(null, "Registration panic bunker age: [config.registration_panic_bunker_age]")
-				if(ticker.mode && ticker.mode.config_tag == "malfunction")
-					var/datum/game_mode/malfunction/GM = ticker.mode
+				if(SSticker.mode && SSticker.mode.config_tag == "malfunction")
+					var/datum/game_mode/malfunction/GM = SSticker.mode
 					if(GM.malf_mode_declared)
 						stat(null, "Time left: [max(GM.AI_win_timeleft / (GM.apcs / APC_MIN_TO_MALF_DECLARE), 0)]")
 				if(SSshuttle.online && SSshuttle.location < 2)
@@ -681,7 +699,7 @@ note dizziness decrements automatically in the mob's Life() proc.
 						stat("Failsafe Controller:", "ERROR")
 					if(Master)
 						stat(null)
-						for(var/datum/subsystem/SS in Master.subsystems)
+						for(var/datum/controller/subsystem/SS in Master.subsystems)
 							SS.stat_entry()
 					cameranet.stat_entry()
 
@@ -936,12 +954,8 @@ note dizziness decrements automatically in the mob's Life() proc.
 		return
 	usr.next_move = world.time + 20
 
-	if(usr.stat == UNCONSCIOUS)
-		to_chat(usr, "You are unconcious and cannot do that!")
-		return
-
-	if(usr.restrained())
-		to_chat(usr, "You are restrained and cannot do that!")
+	if(usr.incapacitated())
+		to_chat(usr, "You can not do this while being incapacitated!")
 		return
 
 	var/mob/S = src
@@ -994,6 +1008,7 @@ note dizziness decrements automatically in the mob's Life() proc.
 					BP = limb
 
 		BP.implants -= selection
+		H.sec_hud_set_implants()
 		for(var/datum/wound/wound in BP.wounds)
 			wound.embedded_objects -= selection
 
@@ -1016,17 +1031,26 @@ note dizziness decrements automatically in the mob's Life() proc.
 			anchored = 0
 	return 1
 
-/mob/proc/get_ghost(even_if_they_cant_reenter = 0)
+///Get the ghost of this mob (from the mind)
+/mob/proc/get_ghost(even_if_they_cant_reenter, ghosts_with_clients)
 	if(mind)
-		for(var/mob/dead/observer/G in observer_list)
-			if(G.mind == mind)
-				if(G.can_reenter_corpse || even_if_they_cant_reenter)
-					return G
-				break
+		return mind.get_ghost(even_if_they_cant_reenter, ghosts_with_clients)
+
+/mob/proc/GetSpell(spell_type)
+	for(var/obj/effect/proc_holder/spell/spell in spell_list)
+		if(spell == spell_type)
+			return spell
+
+	if(mind)
+		for(var/obj/effect/proc_holder/spell/spell in mind.spell_list)
+			if(spell == spell_type)
+				return spell
+	return FALSE
 
 /mob/proc/AddSpell(obj/effect/proc_holder/spell/spell)
 	spell_list += spell
-	mind.spell_list += spell	//Connect spell to the mind for transfering action buttons between mobs
+	if(mind)
+		mind.spell_list += spell	//Connect spell to the mind for transfering action buttons between mobs
 	if(!spell.action)
 		spell.action = new/datum/action/spell_action
 		spell.action.target = spell
@@ -1037,6 +1061,22 @@ note dizziness decrements automatically in the mob's Life() proc.
 	if(isliving(src))
 		spell.action.Grant(src)
 	return
+
+/mob/proc/RemoveSpell(obj/effect/proc_holder/spell/S)
+	spell_list -= S
+	if(mind)
+		mind.spell_list -= S
+	qdel(S)
+
+/mob/proc/ClearSpells()
+	for(var/spell in spell_list)
+		spell_list -= spell
+		qdel(spell)
+
+	if(mind)
+		for(var/spell in mind.spell_list)
+			mind.spell_list -= spell
+			qdel(spell)
 
 /mob/proc/set_EyesVision(preset = null, transition_time = 5)
 	if(!client) return
@@ -1100,6 +1140,9 @@ note dizziness decrements automatically in the mob's Life() proc.
 /mob/proc/can_unbuckle(mob/user)
 	return 1
 
+/mob/proc/get_targetzone()
+	return null
+
 /mob/proc/update_stat()
 	return
 
@@ -1108,3 +1151,28 @@ note dizziness decrements automatically in the mob's Life() proc.
 
 /atom/movable/proc/is_facehuggable()
 	return FALSE
+
+// Return null if mob of this type can not scramble messages.
+/mob/proc/get_scrambled_message(message, datum/language/speaking = null)
+	return speaking ? speaking.scramble(message) : stars(message)
+
+/**
+  * Prepare the huds for this atom
+  *
+  * Goes through hud_possible list and adds the images to the hud_list variable (if not already
+  * cached)
+  */
+/atom/proc/prepare_huds()
+	if(hud_list || !hud_possible)
+		return
+
+	hud_list = list()
+	for(var/hud in hud_possible)
+		var/hint = hud_possible[hud]
+		switch(hint)
+			if(HUD_LIST_LIST)
+				hud_list[hud] = list()
+			else
+				var/image/I = image('icons/mob/hud.dmi', src, "")
+				I.appearance_flags = RESET_COLOR|RESET_TRANSFORM
+				hud_list[hud] = I

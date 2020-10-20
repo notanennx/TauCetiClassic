@@ -15,11 +15,7 @@
  */
 
 /obj/item/weapon/storage/fancy
-	icon = 'icons/obj/food.dmi'
-	icon_state = "donutbox6"
-	name = "donut box"
-	desc = "Very tasty donuts. Security staff will rate them."
-	var/icon_type = "donut"
+	var/icon_type
 
 /obj/item/weapon/storage/fancy/update_icon(itemremoved = 0)
 	var/total_contents = src.contents.len - itemremoved
@@ -42,18 +38,29 @@
  */
 
 /obj/item/weapon/storage/fancy/donut_box
-	icon = 'icons/obj/food.dmi'
-	icon_state = "donutbox6"
-	icon_type = "donut"
 	name = "donut box"
+	desc = "Very tasty donuts. Security staff will rate them."
+	icon_state = "donutbox_back"
+	icon_type = "donut"
 	storage_slots = 6
 	can_hold = list(/obj/item/weapon/reagent_containers/food/snacks/donut)
 
+/obj/item/weapon/storage/fancy/donut_box/update_icon()
+	cut_overlays()
+
+	for(var/i in 1 to contents.len)
+		var/obj/item/weapon/reagent_containers/food/snacks/donut/donut = contents[i]
+		var/icon/new_donut_icon = icon('icons/obj/storage.dmi', "donut_[donut.donut_sprite_type]")
+		new_donut_icon.Shift(EAST, 3 * (i - 1))
+		add_overlay(new_donut_icon)
+
+	add_overlay(icon('icons/obj/storage.dmi', "donutbox_front"))
 
 /obj/item/weapon/storage/fancy/donut_box/atom_init()
 	. = ..()
 	for (var/i in 1 to storage_slots)
 		new /obj/item/weapon/reagent_containers/food/snacks/donut/normal(src)
+	update_icon()
 
 /*
  * Egg Box
@@ -85,6 +92,7 @@
 	item_state = "candlebox"
 	storage_slots = 5
 	throwforce = 2
+	w_class = ITEM_SIZE_SMALL
 	slot_flags = SLOT_FLAGS_BELT
 	var/candle_type = "white"
 
@@ -127,6 +135,7 @@
 	item_state = "black_candlebox5"
 	storage_slots = 5
 	throwforce = 2
+	w_class = ITEM_SIZE_SMALL
 	slot_flags = SLOT_FLAGS_BELT
 	var/cooldown = 0
 	var/teleporter_delay = 0
@@ -174,12 +183,15 @@
 					break
 			teleporter_delay += rand(5,10) // teleporter_delay-- is ran only once half a minute. This seems reasonable.
 
-/obj/item/weapon/storage/fancy/black_candle_box/attackby(obj/item/W, mob/user)
-	..()
-	if(istype(W, /obj/item/device/occult_scanner))
-		var/obj/item/device/occult_scanner/OS = W
-		OS.scanned_type = src.type
+/obj/item/weapon/storage/fancy/black_candle_box/attackby(obj/item/I, mob/user, params)
+	if(istype(I, /obj/item/device/occult_scanner))
+		var/obj/item/device/occult_scanner/OS = I
+		OS.scanned_type = type
 		to_chat(user, "<span class='notice'>[src] has been succesfully scanned by [OS]</span>")
+
+	else
+		return ..()
+
 /*
  * Crayon Box
  */
@@ -224,11 +236,11 @@
 	add_overlay(crayon_overlays)
 	return
 
-/obj/item/weapon/storage/fancy/crayons/attackby(obj/item/toy/crayon/W, mob/user)
-	if(istype(W, /obj/item/toy/crayon/chalk) || istype(W, /obj/item/toy/crayon/spraycan))
-		to_chat(user, "\The [W] is too bulky to be contained in [src].")
+/obj/item/weapon/storage/fancy/crayons/attackby(obj/item/I, mob/user, params)
+	if(istype(I, /obj/item/toy/crayon/chalk) || istype(I, /obj/item/toy/crayon/spraycan))
+		to_chat(user, "\The [I] is too bulky to be contained in [src].")
 		return
-	..()
+	return ..()
 
 /*
  * Glowsticks Box
@@ -252,11 +264,11 @@
 	update_icon()
 
 /obj/item/weapon/storage/fancy/glowsticks/proc/add_stick()
-	new /obj/item/weapon/reagent_containers/food/snacks/glowstick/green(src)
-	new /obj/item/weapon/reagent_containers/food/snacks/glowstick/red(src)
-	new /obj/item/weapon/reagent_containers/food/snacks/glowstick/blue(src)
-	new /obj/item/weapon/reagent_containers/food/snacks/glowstick/yellow(src)
-	new /obj/item/weapon/reagent_containers/food/snacks/glowstick/orange(src)
+	new /obj/item/weapon/reagent_containers/food/snacks/glowstick/regular/green(src)
+	new /obj/item/weapon/reagent_containers/food/snacks/glowstick/regular/red(src)
+	new /obj/item/weapon/reagent_containers/food/snacks/glowstick/regular/blue(src)
+	new /obj/item/weapon/reagent_containers/food/snacks/glowstick/regular/yellow(src)
+	new /obj/item/weapon/reagent_containers/food/snacks/glowstick/regular/orange(src)
 
 /obj/item/weapon/storage/fancy/glowsticks/update_icon()
 	cut_overlays() //resets list
@@ -394,6 +406,6 @@
 		add_overlay(image(icon, src, "ledb"))
 	return
 
-/obj/item/weapon/storage/lockbox/vials/attackby(obj/item/weapon/W, mob/user)
-	..()
+/obj/item/weapon/storage/lockbox/vials/attackby(obj/item/I, mob/user, params)
+	. = ..()
 	update_icon()

@@ -13,6 +13,7 @@
 	var/toggleable = 0
 	var/off_state = "degoggles"
 	var/active = 1
+	var/sightglassesmod = null
 	var/activation_sound = 'sound/items/buttonclick.ogg'
 
 	sprite_sheet_slot = SPRITE_SHEET_EYES
@@ -43,6 +44,7 @@
 	action_button_name = "Toggle Goggles"
 	origin_tech = "magnets=2;engineering=2"
 	toggleable = 1
+	sightglassesmod = "meson"
 	vision_flags = SEE_TURFS
 
 /obj/item/clothing/glasses/meson/prescription
@@ -57,6 +59,7 @@
 	item_state = "glasses"
 	action_button_name = "Toggle Goggles"
 	toggleable = 1
+	sightglassesmod = "sci"
 
 /obj/item/clothing/glasses/night
 	name = "night vision goggles"
@@ -68,6 +71,7 @@
 //	vision_flags = SEE_SELF
 	darkness_view = 7
 	toggleable = 1
+	sightglassesmod = "nvg"
 	action_button_name = "Toggle Goggles"
 	active = 1
 	off_state = "night"
@@ -174,7 +178,7 @@
 	set name = "Adjust welding goggles"
 	set src in usr
 
-	if(usr.canmove && !usr.stat && !usr.restrained())
+	if(!usr.incapacitated())
 		if(up)
 			up = !up
 			flags |= GLASSESCOVERSEYES
@@ -229,17 +233,13 @@
 	icon_state = "bigsunglasses"
 	item_state = "bigsunglasses"
 
-/obj/item/clothing/glasses/sunglasses/sechud
+/obj/item/clothing/glasses/sunglasses/hud/sechud
 	name = "HUDsunglasses"
 	desc = "Sunglasses with a HUD."
 	icon_state = "sunhud"
-	var/obj/item/clothing/glasses/hud/security/hud = null
+	hud_types = list(DATA_HUD_SECURITY)
 
-/obj/item/clothing/glasses/sunglasses/sechud/atom_init()
-	. = ..()
-	hud = new/obj/item/clothing/glasses/hud/security(src)
-
-/obj/item/clothing/glasses/sunglasses/sechud/tactical
+/obj/item/clothing/glasses/sunglasses/hud/sechud/tactical
 	name = "tactical HUD"
 	desc = "Flash-resistant goggles with inbuilt combat and security information."
 	icon_state = "swatgoggles"
@@ -253,6 +253,7 @@
 	vision_flags = SEE_MOBS
 	invisa_view = 2
 	toggleable = 1
+	sightglassesmod = "thermal"
 	action_button_name = "Toggle Goggles"
 
 /obj/item/clothing/glasses/thermal/emp_act(severity)
@@ -315,6 +316,11 @@
 	desc = "An advanced medical head-up display that allows doctors to find patients in complete darkness."
 	icon_state = "healthhudnight"
 	darkness_view = 7
+	toggleable = TRUE
+	sightglassesmod = "nvg"
+	action_button_name = "Toggle Goggles"
+	active = 1
+	off_state = "healthhudnight"
 
 /obj/item/clothing/glasses/gar
 	name = "gar glasses"
@@ -333,7 +339,7 @@
 	toggleable = 0
 	action_button_name = null
 
-/obj/item/clothing/glasses/sunglasses/sechud/gar
+/obj/item/clothing/glasses/sunglasses/hud/sechud/gar
 	name = "gar HUDsunglasses"
 	icon_state = "gars"
 	item_state = "gars"
@@ -343,7 +349,7 @@
 	icon_state = "supergarb"
 	item_state = "supergarb"
 
-/obj/item/clothing/glasses/sunglasses/sechud/gar/super
+/obj/item/clothing/glasses/sunglasses/hud/sechud/gar/super
 	name = "supergar HUDSunglasses"
 	icon_state = "supergars"
 	item_state = "supergars"
@@ -358,6 +364,8 @@
 	name = "noir sunglasses"
 	desc = "Somehow these seem even more out-of-date than normal sunglasses."
 	action_button_name = "Toggle Noir"
+	sightglassesmod = "greyscale"
+	toggleable = TRUE
 
 /obj/item/clothing/glasses/sunglasses/noir/attack_self(mob/user)
 	toggle_noir()

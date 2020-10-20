@@ -63,22 +63,9 @@
 	if(ammo_type.len <= 1)
 		return
 
-	if(ammo_type.len == 2)
-		select++
-		if(select > ammo_type.len)
-			select = 1
-	else
-		var/list/pos_selections = list()
-		for(var/i in 1 to ammo_type.len)
-			var/obj/item/ammo_casing/energy/E = ammo_type[i]
-			pos_selections[E.select_name] = i
-
-		var/choice = input("Please choose firing mode", "Firing Mode Selection") as null|anything in pos_selections
-		if(user.get_active_hand() != src)
-			return
-
-		if(choice)
-			select = pos_selections[choice]
+	select++
+	if(select > ammo_type.len)
+		select = 1
 
 	var/obj/item/ammo_casing/energy/shot = ammo_type[select]
 	fire_sound = shot.fire_sound
@@ -118,6 +105,13 @@
 	select_fire(usr)
 
 /obj/item/weapon/gun/energy/AltClick(mob/user)
+	if(!Adjacent(user))
+		return
+	if(user.incapacitated())
+		return
+	if(!user.IsAdvancedToolUser())
+		to_chat(user, "<span class='warning'>You can not comprehend what to do with this.</span>")
+		return
 	select_fire(user)
 
 /obj/item/weapon/gun/energy/attack_self(mob/living/user)

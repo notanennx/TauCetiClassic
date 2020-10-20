@@ -4,7 +4,7 @@
 	set desc = "Allows to hide beneath tables or certain items. Toggled on or off."
 	set category = "Alien"
 
-	if(stat != CONSCIOUS)
+	if(incapacitated())
 		return
 
 	if (layer != TURF_LAYER+0.2)
@@ -25,7 +25,7 @@
 	set desc = "Evolve into a fully grown Alien."
 	set category = "Alien"
 
-	if(stat != CONSCIOUS)
+	if(incapacitated())
 		return
 
 	if(!isturf(src.loc))
@@ -56,7 +56,9 @@
 				new_xeno = new /mob/living/carbon/xenomorph/humanoid/sentinel(loc)
 			if("Drone")
 				new_xeno = new /mob/living/carbon/xenomorph/humanoid/drone(loc)
-		if(mind)	mind.transfer_to(new_xeno)
+		if(mind)
+			mind.transfer_to(new_xeno)
+			new_xeno.mind.add_antag_hud(ANTAG_HUD_ALIEN, "hudalien", new_xeno)
 		qdel(src)
 		return
 	else

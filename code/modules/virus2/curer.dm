@@ -15,9 +15,9 @@
 		var/mob/living/carbon/C = user
 		if(!container)
 			container = I
-			C.drop_item()
-			I.loc = src
+			C.drop_from_inventory(I, src)
 		return
+
 	if(istype(I,/obj/item/weapon/virusdish))
 		if(virusing)
 			to_chat(user, "<b>The pathogen materializer is still recharging..</b>")
@@ -29,12 +29,12 @@
 		product.reagents.add_reagent("blood",30,data)
 
 		virusing = TRUE
-		addtimer(VARSET_CALLBACK(src, virusing, FALSE), 1200)
+		VARSET_IN(src, virusing, FALSE, 1200)
 
 		state("The [src.name] Buzzes", "blue")
 		return
-	..()
-	return
+
+	return ..()
 
 /obj/machinery/computer/curer/ui_interact(mob/user)
 	var/dat
@@ -60,7 +60,10 @@
 	else
 		dat = "Please insert a container."
 
-	user << browse(entity_ja(dat), "window=computer;size=400x500")
+	var/datum/browser/popup = new(user, "computer", "[src.name]", 400, 500)
+	popup.set_content(dat)
+	popup.open()
+
 	onclose(user, "computer")
 
 /obj/machinery/computer/curer/process()

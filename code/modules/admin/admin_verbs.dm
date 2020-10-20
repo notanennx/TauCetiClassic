@@ -10,7 +10,6 @@ var/list/admin_verbs_default = list(
 var/list/admin_verbs_admin = list(
 	/client/proc/player_panel_new,		//shows an interface for all players, with links to various panels,
 	/client/proc/invisimin,				//allows our mob to go invisible/visible,
-//	/datum/admins/proc/show_traitor_panel,	//interface which shows a mob's mind*/ -Removed due to rare practical use. Moved to debug verbs ~Errorage,
 	/datum/admins/proc/toggleenter,		//toggles whether people can join the current game,
 	/datum/admins/proc/toggleguests,	//toggles whether guests can join the current game,
 	/datum/admins/proc/announce,		//priority announce something to all clients,
@@ -32,7 +31,6 @@ var/list/admin_verbs_admin = list(
 	/client/proc/jumptocoord,			//we ghost and jump to a coordinate,
 	/client/proc/Getmob,				//teleports a mob to our location,
 	/client/proc/Getkey,				//teleports a mob with a certain ckey to our location,
-//	/client/proc/sendmob,				//sends a mob somewhere*/ -Removed due to it needing two sorting procs to work, which were executed every time an admin right-clicked. ~Errorage,
 	/client/proc/Jump,
 	/client/proc/jumptokey,				//allows us to jump to the location of a mob with a certain ckey,
 	/client/proc/jumptomob,				//allows us to jump to a specific mob,
@@ -48,7 +46,6 @@ var/list/admin_verbs_admin = list(
 	/client/proc/admin_memo,			//admin memo system. show/delete/write. +SERVER needed to delete admin memos of others,
 	/client/proc/dsay,					//talk in deadchat using our ckey/fakekey,
 	/client/proc/toggleprayers,			//toggles prayers on/off,
-//	/client/proc/toggle_hear_deadcast,	//toggles whether we hear deadchat,
 	/client/proc/toggle_hear_radio,		//toggles whether we hear the radio,
 	/client/proc/secrets,
 	/datum/admins/proc/toggleooc,		//toggles ooc on/off for everyone,
@@ -57,11 +54,10 @@ var/list/admin_verbs_admin = list(
 	/datum/admins/proc/toggledsay,		//toggles dsay on/off for everyone,
 	/client/proc/game_panel,			//game panel, allows to change game-mode etc,
 	/client/proc/cmd_admin_say,			//admin-only ooc chat,
-	/datum/admins/proc/PlayerNotes,
-	/datum/admins/proc/show_player_info,
 	/client/proc/free_slot,			//frees slot for chosen job,
 	/client/proc/cmd_admin_change_custom_event,
 	/client/proc/toggleattacklogs,
+	/client/proc/toggle_noclient_attacklogs,
 	/client/proc/toggledebuglogs,
 	/client/proc/toggleghostwriters,
 	/client/proc/toggledrones,
@@ -72,12 +68,13 @@ var/list/admin_verbs_admin = list(
 	/client/proc/toggle_antagHUD_restrictions,
 	/client/proc/allow_character_respawn,	// Allows a ghost to respawn,
 	/client/proc/aooc,
-	/client/proc/change_security_level,
 	/client/proc/empty_ai_core_toggle_latejoin,
 	/client/proc/send_fax_message,
-	/client/proc/debug_variables 		//allows us to -see- the variables of any instance in the game. +VAREDIT needed to modify,
+	/client/proc/debug_variables, 		//allows us to -see- the variables of any instance in the game. +VAREDIT needed to modify,
+	/client/proc/toggle_combo_hud, // Toggle all aviables huds, except mining hud
 	)
 var/list/admin_verbs_log = list(
+	/client/proc/show_player_notes,
 	/client/proc/getserverlogs,			//allows us to fetch server logs (diary) for other days,
 	/client/proc/getcurrentlogs,			//allows us to fetch logs for other days,
 	/client/proc/getlogsbyid,			   //allows us to fetch logs by round id,
@@ -157,6 +154,7 @@ var/list/admin_verbs_debug = list(
 	/client/proc/restart_controller,
 	/client/proc/cmd_admin_list_open_jobs,
 	/client/proc/Debug2,
+	/client/proc/forceEvent,
 	/client/proc/ZASSettings,
 	/client/proc/cmd_debug_make_powernets,
 	/client/proc/cmd_debug_load_junkyard,
@@ -206,7 +204,10 @@ var/list/admin_verbs_whitelist = list(
 	/datum/admins/proc/toggle_job_restriction
 	)
 var/list/admin_verbs_event = list(
-	/client/proc/event_map_loader
+	/client/proc/event_map_loader,
+	/client/proc/admin_crew_salary,
+	/client/proc/event_manager_panel,
+	/client/proc/change_blobwincount
 	)
 
 //verbs which can be hidden - needs work
@@ -537,7 +538,7 @@ var/list/admin_verbs_hideable = list(
 	if(!warned_ckey || !reason)
 		return
 
-	notes_add(warned_ckey, "ADMINWARN: " + reason, src)
+	notes_add(warned_ckey, "ADMINWARN: " + reason, src, secret = 0)
 
 	var/client/C = directory[warned_ckey]
 	reason = sanitize(reason)
@@ -735,14 +736,19 @@ var/list/admin_verbs_hideable = list(
 	set name = "De-admin self"
 	set category = "Admin"
 
-	if(holder)
-		if(alert("Confirm self-deadmin for the round?",,"Yes","No") == "Yes")
-			log_admin("[key_name(usr)] deadmined themself.")
-			message_admins("[key_name_admin(usr)] deadmined themself.")
-			deadmin()
-			to_chat(src, "<span class='interface'>You are now a normal player.</span>")
-			verbs += /client/proc/readmin_self
-			feedback_add_details("admin_verb","DAS") //If you are copy-pasting this, ensure the 2nd parameter is unique to the new proc!
+	if(!holder)
+		return
+
+	if(alert("Confirm self-deadmin for the round?",,"Yes","No") == "Yes")
+		if(has_antag_hud())
+			toggle_combo_hud()
+
+		log_admin("[key_name(usr)] deadmined themself.")
+		message_admins("[key_name_admin(usr)] deadmined themself.")
+		deadmin()
+		to_chat(src, "<span class='interface'>You are now a normal player.</span>")
+		verbs += /client/proc/readmin_self
+		feedback_add_details("admin_verb","DAS") //If you are copy-pasting this, ensure the 2nd parameter is unique to the new proc!
 
 /client/proc/toggle_log_hrefs()
 	set name = "Toggle href logging"
@@ -761,19 +767,6 @@ var/list/admin_verbs_hideable = list(
 	set category = "Admin"
 	if(holder)
 		src.holder.output_ai_laws()
-
-/client/proc/change_security_level()
-	set name = "Set security level"
-	set desc = "Sets the station security level."
-	set category = "Admin"
-
-	if(!check_rights(R_ADMIN))
-		return
-	var/sec_level = input(usr, "It's currently code [get_security_level()].", "Select Security Level")  as null|anything in (list("green","blue","red","delta")-get_security_level())
-	if(alert("Switch from code [get_security_level()] to code [sec_level]?","Change security level?","Yes","No") == "Yes")
-		set_security_level(sec_level)
-		log_admin("[key_name(usr)] changed the security level to code [sec_level].")
-
 
 //---- bs12 verbs ----
 
@@ -828,33 +821,32 @@ var/list/admin_verbs_hideable = list(
 		M.s_tone = max(min(round(text2num(new_tone)), 220), 1)
 		M.s_tone =  -M.s_tone + 35
 
-	// hair
-	var/new_hstyle = input(usr, "Select a hair style", "Grooming")  as null|anything in hair_styles_list
-	if(new_hstyle)
-		M.h_style = new_hstyle
-
-	// facial hair
-	var/new_fstyle = input(usr, "Select a facial hair style", "Grooming")  as null|anything in facial_hair_styles_list
-	if(new_fstyle)
-		M.f_style = new_fstyle
-
 	var/new_gender = alert(usr, "Please select gender.", "Character Generation", "Male", "Female")
 	if (new_gender)
 		if(new_gender == "Male")
 			M.gender = MALE
 		else
 			M.gender = FEMALE
+
+	// hair
+	var/new_hstyle = input(usr, "Select a hair style", "Grooming")  as null|anything in get_valid_styles_from_cache(hairs_cache, M.get_species(), M.gender)
+	if(new_hstyle)
+		M.h_style = new_hstyle
+
+	// facial hair
+	var/new_fstyle = input(usr, "Select a facial hair style", "Grooming")  as null|anything in get_valid_styles_from_cache(facial_hairs_cache, M.get_species(), M.gender)
+	if(new_fstyle)
+		M.f_style = new_fstyle
+
 	M.apply_recolor()
 	M.update_hair()
 	M.update_body()
 	M.check_dna(M)
 
-/client/proc/playernotes()
-	set name = "Show Player Info"
-	set category = "Admin"
-	if(holder)
-		holder.PlayerNotes()
-	return
+/client/proc/show_player_notes(key as text)
+	set name = "Show Player Notes"
+	set category = "Logs"
+	holder?.show_player_notes(key)
 
 /client/proc/free_slot()
 	set name = "Free Job Slot"
@@ -872,6 +864,40 @@ var/list/admin_verbs_hideable = list(
 			SSjob.FreeRole(job)
 	return
 
+/client/proc/toggle_combo_hud()
+	set name = "Toggle Combo HUD"
+	set desc = "Toggles the Admin Combo HUD (antag, sci, med, eng)"
+	set category = "Admin"
+
+	if(!check_rights(R_ADMIN))
+		return
+
+	if(isobserver(usr))
+		var/mob/dead/observer/O = usr
+		if(O.data_hud)
+			to_chat(usr, "Please disable combo-HUDs in the ghost tab.")
+			return
+
+	var/adding_hud = !has_antag_hud()
+
+	for(var/hudtype in list(DATA_HUD_SECURITY, DATA_HUD_MEDICAL_ADV, DATA_HUD_DIAGNOSTIC)) // add data huds
+		var/datum/atom_hud/H = global.huds[hudtype]
+		(adding_hud) ? H.add_hud_to(usr) : H.remove_hud_from(usr)
+	for(var/datum/atom_hud/antag/H in global.huds) // add antag huds
+		(adding_hud) ? H.add_hud_to(usr) : H.remove_hud_from(usr)
+
+	if(ishuman(mob))
+		var/mob/living/carbon/human/H = mob
+		H.update_sight()
+
+	to_chat(usr, "You toggled your admin combo HUD [adding_hud ? "ON" : "OFF"].")
+	message_admins("[key_name_admin(usr)] toggled their admin combo HUD [adding_hud ? "ON" : "OFF"].")
+	log_admin("[key_name(usr)] toggled their admin combo HUD [adding_hud ? "ON" : "OFF"].")
+
+/client/proc/has_antag_hud()
+	var/datum/atom_hud/A = global.huds[ANTAG_HUD_TRAITOR]
+	return A.hudusers[mob]
+
 /client/proc/toggleattacklogs()
 	set name = "Toggle Attack Log Messages"
 	set category = "Preferences"
@@ -882,6 +908,15 @@ var/list/admin_verbs_hideable = list(
 	else
 		to_chat(usr, "You now won't get attack log messages")
 
+/client/proc/toggle_noclient_attacklogs()
+	set name = "Toggle No Client Attack Log Messages"
+	set category = "Preferences"
+
+	prefs.chat_toggles ^= CHAT_NOCLIENT_ATTACK
+	if (prefs.chat_toggles & CHAT_NOCLIENT_ATTACK)
+		to_chat(usr, "You now will get attack log messages for mobs that don't have a client")
+	else
+		to_chat(usr, "You now won't get attack log messages for mobs that don't have a client")
 
 /client/proc/toggleghostwriters()
 	set name = "Toggle ghost writers"
@@ -1020,6 +1055,26 @@ var/list/admin_verbs_hideable = list(
 	log_admin("[key_name(usr)] has [AI_Interact ? "activated" : "deactivated"] Admin AI Interact")
 	message_admins("[key_name_admin(usr)] has [AI_Interact ? "activated" : "deactivated"] their AI interaction")
 
+/client/proc/admin_crew_salary()
+	set name = "Salary"
+	set category = "Event"
+	if(holder)
+		holder.change_crew_salary()
+	feedback_add_details("admin_verb","Salary") //If you are copy-pasting this, ensure the 2nd parameter is unique to the new proc!
+	return
+
+/client/proc/change_blobwincount()
+	set name = "Change Blobs to Win"
+	set category = "Event"
+	if(holder)
+		var/new_count =  input(src, "Enter new Blobs count to Win", "New Blobwincount", blobwincount) as num|null
+		if(new_count)
+			blobwincount = new_count
+			log_admin("[key_name(usr)] changed blobwincount to [blobwincount]")
+			message_admins("[key_name_admin(usr)] changed blobwincount to [blobwincount]")
+			feedback_add_details("admin_verb","Blobwincount") //If you are copy-pasting this, ensure the 2nd parameter is unique to the new proc!
+	return
+
 //////////////////////////////
 // Map loader
 //////////////////////////////
@@ -1040,7 +1095,7 @@ var/list/admin_verbs_hideable = list(
 		t = trim(t)
 		if (length(t) == 0)
 			continue
-		else if (copytext(t, 1, 2) == "#")
+		else if (t[1] == "#")
 			continue
 		var/pos = findtext(t, " ")
 		var/name = null
@@ -1062,12 +1117,17 @@ var/list/admin_verbs_hideable = list(
 	var/choice = input("Select a map", , "CANCEL") in AllowedMaps
 	if(choice == "--CANCEL--") return
 
+	var/linkage = input("Linkage", , "None") in list(SELFLOOPING, CROSSLINKED, "None")
+
+	if(linkage == "None")
+		linkage = UNAFFECTED
+
 	message_admins("[key_name_admin(src)] started loading event-map [choice]")
 	log_admin("[key_name(src)] started loading event-map [choice]")
 
-	if(maploader.load_new_z_level(choice))//, load_speed = 100)
-		message_admins("[key_name_admin(src)] loaded event-map [choice], zlevel [world.maxz]")
-		log_admin("[key_name(src)] loaded event-map [choice], zlevel [world.maxz]")
+	if(maploader.load_new_z_level(choice, linkage))//, load_speed = 100)
+		message_admins("[key_name_admin(src)] loaded event-map [choice], zlevel [world.maxz], linkage [linkage ? linkage : "not set"]")
+		log_admin("[key_name(src)] loaded event-map [choice], zlevel [world.maxz], linkage [linkage ? linkage : "not set"]")
 	else
 		message_admins("[key_name_admin(src)] failed to load event-map [choice].")
 
@@ -1140,7 +1200,8 @@ var/centcom_barriers_stat = 1
 	var/active = 1
 	var/lchannel = 999
 
-/obj/effect/landmark/trololo/Crossed(mob/M)
+/obj/effect/landmark/trololo/Crossed(atom/movable/AM)
+	. = ..()
 	if(!active) return
 	/*if(istype(M, /mob/living/carbon))
 		M.playsound_local(null, melody, VOL_EFFECTS_MASTER, 20, FALSE, channel = lchannel, wait = TRUE, ignore_environment = TRUE)*/

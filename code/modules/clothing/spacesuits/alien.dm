@@ -188,7 +188,7 @@
 	if(slot == SLOT_WEAR_SUIT)
 		wearer = user
 		START_PROCESSING(SSobj, src)
-		wearer.playsound_local(null, 'sound/rig/shortbeep.wav', VOL_EFFECTS_MASTER, null, FALSE)
+		wearer.playsound_local(null, 'sound/rig/shortbeep.ogg', VOL_EFFECTS_MASTER, null, FALSE)
 		to_chat(wearer, "<span class='notice'>The medical system is ready for use. Make sure your helmet supports this system.</span>")
 
 /obj/item/clothing/suit/space/vox/medic/dropped(mob/user)
@@ -279,7 +279,7 @@
 			wearer.alpha = 4
 			wearer.mouse_opacity = 0
 			if(current_charge <= (power_decrease * 15)) // there are 30 seconds to full discharge
-				wearer.playsound_local(null, 'sound/rig/loudbeep.wav', VOL_EFFECTS_MASTER, null, FALSE)
+				wearer.playsound_local(null, 'sound/rig/loudbeep.ogg', VOL_EFFECTS_MASTER, null, FALSE)
 				to_chat(wearer, "<span class='danger'>Critically low charge:</span> <span class='electronicblue'>\[ [current_charge] \]</span>")
 	else
 		var/power_increase = 20 // 30 seconds to full charge
@@ -359,14 +359,14 @@
 	s.start()
 	toggle_stealth()
 
-/obj/item/clothing/suit/space/vox/stealth/attack_reaction(mob/living/carbon/human/H, reaction_type, mob/living/carbon/human/T = null)
+/obj/item/clothing/suit/space/vox/stealth/attack_reaction(mob/living/L, reaction_type, mob/living/carbon/human/T = null)
 	if(on)
 		if(reaction_type == REACTION_ITEM_TAKE || reaction_type == REACTION_ITEM_TAKEOFF)
 			var/charge_decrease = max(rand(20, 30), round((damage * 25) + rand(1, 5)))
 			current_charge -= charge_decrease
 			if(wearer)
 				to_chat(wearer, "<span class='warning'>Attention. The cloaking system is overloaded. Redistributed [charge_decrease] conventional units of energy.</span>")
-				wearer.playsound_local(null, 'sound/rig/beep.wav', VOL_EFFECTS_MASTER, null, FALSE)
+				wearer.playsound_local(null, 'sound/rig/beep.ogg', VOL_EFFECTS_MASTER, null, FALSE)
 			return
 		overload()
 

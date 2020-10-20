@@ -113,7 +113,7 @@
 	var/obj/item/weapon/grab/G = I
 	if(istype(G))	// handle grabbed mob
 		if(ismob(G.affecting))
-			var/mob/GM = G.affecting
+			var/mob/living/GM = G.affecting
 			user.SetNextMove(CLICK_CD_MELEE)
 			if(user.is_busy()) return
 			user.visible_message("<span class='red'>[usr] starts putting [GM.name] into the disposal.</span>")
@@ -122,17 +122,14 @@
 				GM.instant_vision_update(1,src)
 				user.visible_message("<span class='danger'>[GM.name] has been placed in the [src] by [user].</span>")
 				qdel(G)
-				usr.attack_log += "\[[time_stamp()]\] <font color='red'>Has placed [GM.name] ([GM.ckey]) in disposals.</font>"
-				GM.attack_log += "\[[time_stamp()]\] <font color='orange'>Has been placed in disposals by [usr.name] ([usr.ckey])</font>"
-				msg_admin_attack("[usr.name] ([usr.ckey]) placed [GM.name] ([GM.ckey]) in a disposals unit.", usr)
+
+				GM.log_combat(usr, "placed in disposals")
 		return
 
 
 	if(istype(I, /obj/item/weapon/holder))
-		for(var/mob/holdermob in I.contents)
-			usr.attack_log += "\[[time_stamp()]\] <font color='red'>Has placed [holdermob.name] ([holdermob.ckey]) in disposals.</font>"
-			holdermob.attack_log += "\[[time_stamp()]\] <font color='orange'>Has been placed in disposals by [usr.name] ([usr.ckey])</font>"
-			msg_admin_attack("[usr.name] ([usr.ckey]) placed [holdermob.name] ([holdermob.ckey]) in a disposals unit", usr)
+		for(var/mob/living/holdermob in I.contents)
+			holdermob.log_combat(usr, "placed in disposals")
 
 	if(!I || !I.canremove || I.flags & NODROP)
 		return
@@ -146,8 +143,8 @@
 
 // mouse drop another mob or self
 //
-/obj/machinery/disposal/proc/MouseDrop_T2(mob/target, mob/user)
-	if(user.stat || !user.canmove || !istype(target))
+/obj/machinery/disposal/proc/MouseDrop_Mob(mob/living/target, mob/living/user)
+	if(user.incapacitated())
 		return
 	if(target.buckled || get_dist(user, src) > 1 || get_dist(user, target) > 1)
 		return
@@ -181,9 +178,7 @@
 		msg = "<span class='danger'>[user.name] stuffs [target.name] into the [src]!</span>"
 		self_msg = "<span class='red'>You stuff [target.name] into the [src]!</span>"
 
-		user.attack_log += "\[[time_stamp()]\] <font color='red'>Has placed [target.name] ([target.ckey]) in disposals.</font>"
-		target.attack_log += "\[[time_stamp()]\] <font color='orange'>Has been placed in disposals by [user.name] ([user.ckey])</font>"
-		msg_admin_attack("[user.name] ([user.ckey]) placed [target.name] ([target.ckey]) in a disposals unit.", usr)
+		target.log_combat(user, "placed in disposals")
 	else
 		return
 
@@ -198,11 +193,11 @@
 //tc, temporary hack
 /obj/machinery/disposal/MouseDrop_T(atom/A, mob/user)
 	if(ismob(A))
-		MouseDrop_T2(A, user)
+		MouseDrop_Mob(A, user)
 	else if(istype(A, /obj/structure/closet/body_bag))
 		var/obj/structure/closet/body_bag/target = A
 
-		if(get_dist(user, src) > 1 || get_dist(user, target) > 1 || user.stat || istype(user, /mob/living/silicon/ai)) return
+		if(get_dist(user, src) > 1 || get_dist(user, target) > 1 || user.incapacitated() || istype(user, /mob/living/silicon/ai)) return
 		if(isanimal(user)) return
 		if(isessence(user))
 			return
@@ -211,14 +206,16 @@
 		var/msg
 		var/self_msg
 
-		if(user.restrained() || user.stat || user.weakened || user.stunned || user.paralysis) return
+		if(user.incapacitated())
+			return
 		user.visible_message("<span class='notice'>[user] starts stuffing [target.name] into the disposal.</span>")
 		if(user.is_busy() || !do_after(usr, 20, target = src))
 			return
 		if(target_loc != target.loc)
 			return
 
-		if(user.restrained() || user.stat || user.weakened || user.stunned || user.paralysis) return
+		if(user.incapacitated())
+			return
 		msg = "<span class='notice'>[user.name] stuffs [target.name] into the [src]!</span>"
 		self_msg = "<span class='notice'>You stuff [target.name] into the [src]!</span>"
 
@@ -270,79 +267,67 @@
 
 // user interaction
 /obj/machinery/disposal/ui_interact(mob/user)
-	if(stat & BROKEN)
-		user.unset_machine(src)
-		return
+	tgui_interact(user)
 
-	var/dat = "<head><title>Waste Disposal Unit</title></head><body><TT><B>Waste Disposal Unit</B><HR>"
+/obj/machinery/disposal/tgui_interact(mob/user, datum/tgui/ui)
+	ui = SStgui.try_update_ui(user, src, ui)
+	if(!ui)
+		ui = new(user, src, "DisposalUnit", name)
+		ui.open()
 
-	if(!isAI(user))  // AI can't pull flush handle
-		if(flush)
-			dat += "Disposal handle: <A href='?src=\ref[src];handle=0'>Disengage</A> <B>Engaged</B>"
-		else
-			dat += "Disposal handle: <B>Disengaged</B> <A href='?src=\ref[src];handle=1'>Engage</A>"
+/obj/machinery/disposal/tgui_data(mob/user)
+	var/list/data = list()
 
-		dat += "<BR><HR><A href='?src=\ref[src];eject=1'>Eject contents</A><HR>"
+	data["isAI"] = isAI(user)
+	data["flushing"] = flush
+	data["mode"] = mode
+	data["pressure"] = PERCENT(air_contents.return_pressure() / SEND_PRESSURE)
 
-	if(mode <= 0)
-		dat += "Pump: <B>Off</B> <A href='?src=\ref[src];pump=1'>On</A><BR>"
-	else if(mode == 1)
-		dat += "Pump: <A href='?src=\ref[src];pump=0'>Off</A> <B>On</B> (pressurizing)<BR>"
-	else
-		dat += "Pump: <A href='?src=\ref[src];pump=0'>Off</A> <B>On</B> (idle)<BR>"
+	return data
 
-	var/per
-	if(need_env_pressure)
-		per = 100 * air_contents.return_pressure() / (SEND_PRESSURE)
-
-	dat += "Pressure: [need_env_pressure ? round(per, 1):"100"]%<BR></body>"
-
-
-	user.set_machine(src)
-	user << browse(entity_ja(dat), "window=disposal;size=360x170")
-	onclose(user, "disposal")
-
-// handle machine interaction
-
-/obj/machinery/disposal/is_operational_topic()
-	return !(stat & BROKEN)
-
-/obj/machinery/disposal/Topic(href, href_list)
-	if(href_list["close"])
-		usr.unset_machine(src)
-		usr << browse(null, "window=disposal")
-		return FALSE
-
-	. = ..()
-	if(!.)
+/obj/machinery/disposal/tgui_act(action, list/params, datum/tgui/ui, datum/tgui_state/state)
+	if(..())
 		return
 
 	if(usr.loc == src)
-		to_chat(usr, "<span class='red'>You cannot reach the controls from inside.</span>")
-		return FALSE
+		to_chat(usr, "<span class='warning'>You cannot reach the controls from inside.</span>")
+		return
 
-	if(mode == -1 && !href_list["eject"]) // only allow ejecting if mode is -1
-		to_chat(usr, "<span class='red'>The disposal units power is disabled.</span>")
-		return FALSE
+	if(mode == -1 && action != "eject") // only allow ejecting if mode is -1
+		to_chat(usr, "<span class='warning'>The disposal units power is disabled.</span>")
+		return
 
-	if(src.flushing)
-		return FALSE
+	if(stat & BROKEN)
+		return
 
-	if(href_list["pump"])
-		if(text2num(href_list["pump"]))
-			mode = 1
-		else
-			mode = 0
-		update()
+	add_fingerprint(usr)
 
-	if(href_list["handle"])
-		flush = text2num(href_list["handle"])
-		update()
+	if(flushing)
+		return
 
-	if(href_list["eject"])
-		eject()
+	if(isturf(loc))
+		if(action == "handle-0")
+			flush = FALSE
+			update()
+		if(action == "handle-1")
+			flush = TRUE
+			update()
 
-	updateUsrDialog()
+		if(!issilicon(usr))
+			if(action == "pump-0")
+				mode = 0
+				update()
+			if(action == "pump-1")
+				mode = 1
+				update()
+
+			if(action == "eject")
+				eject()
+
+	return TRUE
+
+/obj/machinery/disposal/is_operational_topic()
+	return !(stat & BROKEN)
 
 // eject the contents of the disposal unit
 /obj/machinery/disposal/proc/eject()
@@ -394,8 +379,6 @@
 				feedback_inc("disposal_auto_flush",1)
 				INVOKE_ASYNC(src, .proc/flush)
 		flush_count = 0
-
-	src.updateDialog()
 
 	if(flush && air_contents.return_pressure() >= SEND_PRESSURE )	// flush can happen even without power
 		flush()

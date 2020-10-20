@@ -20,7 +20,6 @@ var/list/airlock_overlays = list()
 	icon = 'icons/obj/doors/airlocks/station/public.dmi'
 	icon_state = "closed"
 	explosion_resistance = 15
-
 	var/aiControlDisabled = 0 //If 1, AI control is disabled until the AI hacks back in and disables the lock. If 2, the AI has bypassed the lock. If -1, the control is enabled but the AI had bypassed it earlier, so if it is disabled again the AI would have no trouble getting back in.
 	var/hackProof = 0 // if 1, this door can't be hacked by the AI
 	var/secondsMainPowerLost = 0 //The number of seconds until power is restored.
@@ -76,6 +75,7 @@ var/list/airlock_overlays = list()
 		inner_material = "glass"
 	if(dir)
 		src.dir = dir
+
 	update_icon()
 	return INITIALIZE_HINT_LATELOAD
 
@@ -91,12 +91,15 @@ var/list/airlock_overlays = list()
 	QDEL_NULL(wires)
 	QDEL_NULL(electronics)
 	closeOther = null
+	var/datum/atom_hud/data/diagnostic/diag_hud = global.huds[DATA_HUD_DIAGNOSTIC]
+	diag_hud.remove_from_hud(src)
 	return ..()
 
 /obj/machinery/door/airlock/process()
 	if(secondsElectrified > 0)
 		secondsElectrified--
 	else
+		diag_hud_set_electrified()
 		return PROCESS_KILL
 
 /obj/machinery/door/airlock/bumpopen(mob/living/user) //Airlocks now zap you when you 'bump' them open when they're electrified. --NeoFite
@@ -441,7 +444,7 @@ var/list/airlock_overlays = list()
 
 /obj/machinery/door/airlock/proc/show_unified_command_interface(mob/user)
 	user.set_machine(src)
-	var/t1 = text("<B>Airlock Control</B><br>\n")
+	var/t1 = ""
 	if(secondsMainPowerLost > 0)
 		if(!isWireCut(AIRLOCK_WIRE_MAIN_POWER1) && !isWireCut(AIRLOCK_WIRE_MAIN_POWER2))
 			t1 += text("Main power is offline for [] seconds.<br>\n", secondsMainPowerLost)
@@ -537,7 +540,11 @@ var/list/airlock_overlays = list()
 			t1 += text("<A href='?src=\ref[];aiDisable=7'>Close door</a><br>\n", src)
 
 	t1 += text("<p><a href='?src=\ref[];close=1'>Close</a></p>\n", src)
-	user << browse(entity_ja(t1), "window=airlock")
+
+	var/datum/browser/popup = new(user, "airlock", "Airlock Control")
+	popup.set_content(t1)
+	popup.open()
+
 	onclose(user, "airlock")
 
 
@@ -648,7 +655,7 @@ var/list/airlock_overlays = list()
 	if(!density)
 		return
 	user.SetNextMove(CLICK_CD_MELEE)
-	if(user.a_intent == "hurt")
+	if(user.a_intent == INTENT_HARM)
 		if(user.hulk_scream(src, 90))
 			door_rupture(user)
 		return
@@ -688,26 +695,9 @@ var/list/airlock_overlays = list()
 		close()
 
 /obj/machinery/door/airlock/attack_hand(mob/user)
-	if(ishuman(user) && prob(40) && density)
-		var/mob/living/carbon/human/H = user
-		if(H.getBrainLoss() >= 60)
-			playsound(src, 'sound/effects/bang.ogg', VOL_EFFECTS_MASTER, 25)
-			if(!istype(H.head, /obj/item/clothing/head/helmet))
-				visible_message("<span class='userdanger'> [user] headbutts the airlock.</span>")
-				var/obj/item/organ/external/BP = H.bodyparts_by_name[BP_HEAD]
-				H.Stun(8)
-				H.Weaken(5)
-				BP.take_damage(10, 0, used_weapon = "Hematoma")
-			else
-				visible_message("<span class='userdanger'> [user] headbutts the airlock. Good thing they're wearing a helmet.</span>")
-			return
-
 	if(wires.interact(user))
 		return
 	else
-		if(isElectrified() && !issilicon(user) && !isobserver(user))
-			if(shock(user, 100))
-				return
 		if(HULK in user.mutations)
 			hulk_break_reaction(user)
 			return
@@ -770,6 +760,7 @@ var/list/airlock_overlays = list()
 						secondsElectrified = 0
 					else if(secondsElectrified > 0)
 						secondsElectrified = 0
+					diag_hud_set_electrified()
 
 				if(7)
 					// Close door
@@ -852,7 +843,8 @@ var/list/airlock_overlays = list()
 						shockedby += "\[[time_stamp()]\][usr](ckey:[usr.ckey])"
 						usr.attack_log += "\[[time_stamp()]\] <font color='red'>Electrified the [name] at [x] [y] [z]</font>"
 						secondsElectrified = 30
-						START_PROCESSING(SSmachine, src)
+						diag_hud_set_electrified()
+						START_PROCESSING(SSmachines, src)
 
 				if(6)
 					// Electrify door indefinitely
@@ -866,6 +858,7 @@ var/list/airlock_overlays = list()
 						shockedby += "\[[time_stamp()]\][usr](ckey:[usr.ckey])"
 						usr.attack_log += "\[[time_stamp()]\] <font color='red'>Electrified the [name] at [x] [y] [z]</font>"
 						secondsElectrified = -1
+						diag_hud_set_electrified()
 
 				if(7)
 					// Open door
@@ -915,8 +908,14 @@ var/list/airlock_overlays = list()
 	if(!no_window)
 		updateUsrDialog()
 
-/obj/machinery/door/airlock/attackby(obj/item/C, mob/user)
+/obj/machinery/door/airlock/try_open(mob/user, obj/item/tool = null)
+	if(isElectrified() && !issilicon(user) && !isobserver(user))
+		if(shock(user, tool ? 75 : 100))
+			add_fingerprint(user)
+			return
+	..()
 
+/obj/machinery/door/airlock/attackby(obj/item/C, mob/user)
 	if(istype(C,/obj/item/weapon/changeling_hammer) && !operating && density) // yeah, hammer ignore electrify
 		var/obj/item/weapon/changeling_hammer/W = C
 		user.do_attack_animation(src)
@@ -928,14 +927,8 @@ var/list/airlock_overlays = list()
 			door_rupture(user)
 		return
 
-	if(!(issilicon(user) || isobserver(user)))
-		if(isElectrified())
-			if(shock(user, 75))
-				return
 	if(istype(C, /obj/item/device/detective_scanner) || istype(C, /obj/item/taperoll))
 		return
-
-	add_fingerprint(user)
 
 	if(iswelder(C) && !(operating > 0) && density)
 		var/obj/item/weapon/weldingtool/W = C
@@ -1028,8 +1021,7 @@ var/list/airlock_overlays = list()
 	else if(istype(C, /obj/item/weapon/airlock_painter)) 		//airlock painter
 		change_paintjob(C, user)
 	else
-		..()
-	return
+		return ..()
 
 /obj/machinery/door/airlock/phoron/attackby(obj/item/I, mob/user)
 	ignite(I.get_current_temperature())
@@ -1219,9 +1211,6 @@ var/list/airlock_overlays = list()
 			if(prob(10))
 				to_chat(user,"<span=userdanger>You accidentally drop your wrench in the flame</span>")
 				qdel(O)
-	else
-		return
-
 
 /obj/structure/door_scrap/atom_init()
 	. = ..()

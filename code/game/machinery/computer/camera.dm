@@ -55,7 +55,7 @@
 				data["current"] = cam
 
 		var/list/camera_list = list("cameras" = cameras)
-		camera_cache = replacetext(list2json(camera_list), "'", "`")
+		camera_cache = replacetext(json_encode(camera_list), "'", "`")
 	else
 		if(current)
 			data["current"] = current.nano_structure()
@@ -170,6 +170,8 @@
 		reset_current()
 
 	src.current = C
+	playsound(src, 'sound/machines/terminal_prompt_confirm.ogg', VOL_EFFECTS_MASTER, 35, FALSE, -3)
+
 	if(current)
 		var/mob/living/L = current.loc
 		if(istype(L))

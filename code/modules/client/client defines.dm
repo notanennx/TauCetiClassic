@@ -63,7 +63,7 @@
 	preload_rsc = 0 // This is 0 so we can set it to an URL once the player logs in and have them download the resources from a different server.
 	var/static/obj/screen/click_catcher/void
 
-		// /vg/: MEDIAAAAAAAA
+		// MEDIAAAAAAAA
 	// Set on login.
 	var/datum/media_manager/media = null
 
@@ -71,9 +71,21 @@
 
 	var/datum/tooltip/tooltips
 
+	var/list/datum/browser/browsers
+
 
 	// Their chat window, sort of important.
 	// See /goon/code/datums/browserOutput.dm
 	var/datum/chatOutput/chatOutput
 
 	var/list/char_render_holders			//Should only be a key-value list of north/south/east/west = obj/screen.
+
+	var/connection_time
+
+	// List of all asset filenames sent to this client by the asset cache, along with their assoicated md5s
+	var/list/sent_assets = list()
+	/// List of all completed blocking send jobs awaiting acknowledgement by send_asset
+	var/list/completed_asset_jobs = list()
+	/// Last asset send job id.
+	var/last_asset_job = 0
+	var/last_completed_asset_job = 0

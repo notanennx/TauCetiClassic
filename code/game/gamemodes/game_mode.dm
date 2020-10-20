@@ -27,6 +27,11 @@
 	var/list/datum/mind/modePlayer = new // list of current antags.
 	var/list/restricted_jobs = list()	// Jobs it doesn't make sense to be.  I.E chaplain or AI cultist
 	var/list/protected_jobs = list("Velocity Officer", "Velocity Chief", "Velocity Medical Doctor")	// Jobs that can't be traitors because
+
+	// Specie flags that for any amount of reasons can cause this role to not be available.
+	// TO-DO: use traits? ~Luduk
+	var/list/restricted_species_flags = list()
+
 	var/required_players = 0
 	var/required_players_secret = 0 //Minimum number of players for that game mode to be chose in Secret
 	var/required_enemies = 0
@@ -40,6 +45,10 @@
 	var/const/waittime_l = 600
 	var/const/waittime_h = 1800 // started at 1800
 	var/check_ready = TRUE
+
+	var/antag_hud_type
+	var/antag_hud_name
+
 	var/uplink_welcome = "Syndicate Uplink Console:"
 	var/uplink_uses = 20
 	var/uplink_items = {"Highly Visible and Dangerous Weapons;
@@ -134,8 +143,8 @@ Implants;
 		display_roundstart_logout_report()
 
 	feedback_set_details("round_start","[time2text(world.realtime)]")
-	if(ticker && ticker.mode)
-		feedback_set_details("game_mode","[ticker.mode]")
+	if(SSticker && SSticker.mode)
+		feedback_set_details("game_mode","[SSticker.mode]")
 	feedback_set_details("server_ip","[world.internet_address]:[world.port]")
 	spawn(rand(waittime_l, waittime_h))
 		send_intercept()
@@ -143,9 +152,8 @@ Implants;
 	start_state.count(1)
 
 	if(dbcon.IsConnected())
-		var/DBQuery/query_round_game_mode = dbcon.NewQuery("UPDATE erro_round SET game_mode = '[sanitize_sql(ticker.mode)]' WHERE id = [round_id]")
+		var/DBQuery/query_round_game_mode = dbcon.NewQuery("UPDATE erro_round SET game_mode = '[sanitize_sql(SSticker.mode)]' WHERE id = [round_id]")
 		query_round_game_mode.Execute()
-
 	return 1
 
 
@@ -314,6 +322,23 @@ Implants;
 	if(security_level < SEC_LEVEL_BLUE)
 		set_security_level(SEC_LEVEL_BLUE)*/
 
+/datum/game_mode/proc/can_be_antag(datum/mind/player, role)
+	if(restricted_jobs)
+		if(player.assigned_role in restricted_jobs)
+			return FALSE
+
+	var/datum/preferences/prefs = player.current.client.prefs
+
+	var/datum/species/S = all_species[prefs.species]
+
+	if(!S.can_be_role(role))
+		return FALSE
+
+	for(var/specie_flag in restricted_species_flags)
+		if(S.flags[specie_flag])
+			return FALSE
+
+	return TRUE
 
 /datum/game_mode/proc/get_players_for_role(role)
 	var/list/players = list()
@@ -336,12 +361,9 @@ Implants;
 			candidates += player.mind
 			players -= player
 
-	// Remove candidates who want to be antagonist but have a job that precludes it
-	if(restricted_jobs)
-		for(var/datum/mind/player in candidates)
-			for(var/job in restricted_jobs)
-				if(player.assigned_role == job)
-					candidates -= player
+	for(var/datum/mind/player in candidates)
+		if(!can_be_antag(player, role))
+			candidates -= player
 
 	return candidates		// Returns: The number of people who had the antagonist role set to yes, regardless of recomended_enemies, if that number is greater than recommended_enemies
 							//			recommended_enemies if the number of people with that role set to yes is less than recomended_enemies,
@@ -530,3 +552,15 @@ Implants;
 	var/text = ""
 	text += {"<img src="logo_[tempstate].png"> <b>The [antagname] were:</b> <img src="logo_[tempstate].png">"}
 	return text
+
+// Adds the specified antag hud to the player. Usually called in an antag datum file
+/datum/proc/add_antag_hud(antag_hud_type, antag_hud_name, mob/living/mob_override)
+	var/datum/atom_hud/antag/hud = global.huds[antag_hud_type]
+	hud.join_hud(mob_override)
+	set_antag_hud(mob_override, antag_hud_name)
+
+// Removes the specified antag hud from the player. Usually called in an antag datum file
+/datum/proc/remove_antag_hud(antag_hud_type, mob/living/mob_override)
+	var/datum/atom_hud/antag/hud = global.huds[antag_hud_type]
+	hud.leave_hud(mob_override)
+	set_antag_hud(mob_override, null)

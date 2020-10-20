@@ -91,6 +91,9 @@
 			O.loc = src
 			giver = O
 			updateUsrDialog()
+		if(ishuman(usr))
+			var/mob/living/carbon/human/H = usr
+			H.sec_hud_set_ID()
 		else
 			to_chat(user, "<span class='warning'>There is already ID card inside.</span>")
 
@@ -104,7 +107,6 @@
 		dat += "<a href='?src=\ref[src];action=print'>Print</a><br>"
 		dat += "<a href='?src=\ref[src];mode=0'>Back</a><br>"
 	else
-		dat += "<h3>Guest pass terminal #[uid]</h3><br>"
 		dat += "<a href='?src=\ref[src];mode=1'>View activity log</a><br><br>"
 		dat += "Issuing ID: <a href='?src=\ref[src];action=id'>[giver]</a><br>"
 		dat += "Issued to: <a href='?src=\ref[src];choice=giv_name'>[giv_name]</a><br>"
@@ -119,7 +121,10 @@
 				dat += "<a href='?src=\ref[src];choice=access;access=[A]'>[area]</a><br>"
 		dat += "<br><a href='?src=\ref[src];action=issue'>Issue pass</a><br>"
 
-	user << browse(entity_ja(dat), "window=guestpass;size=400x520")
+	var/datum/browser/popup = new(user, "guestpass", "Guest pass terminal #[uid]", 400, 520)
+	popup.set_content(dat)
+	popup.open()
+
 	onclose(user, "guestpass")
 
 
@@ -150,10 +155,11 @@
 						to_chat(usr, "<span class='warning'>Invalid duration.</span>")
 			if ("access")
 				var/A = text2num(href_list["access"])
-				if (A in accesses)
-					accesses.Remove(A)
-				else
-					accesses.Add(A)
+				if (giver && (A in giver.access))
+					if (A in accesses)
+						accesses.Remove(A)
+					else
+						accesses.Add(A)
 	if (href_list["action"])
 		switch(href_list["action"])
 			if ("id")
@@ -173,6 +179,9 @@
 						usr.drop_item()
 						I.loc = src
 						giver = I
+					if(ishuman(usr))
+						var/mob/living/carbon/human/H = usr
+						H.sec_hud_set_ID()
 				updateUsrDialog()
 
 			if ("print")

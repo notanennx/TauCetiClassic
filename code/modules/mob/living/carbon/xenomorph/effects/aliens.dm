@@ -77,11 +77,12 @@
 	if(health <= 0)
 		qdel(src)
 
-/obj/structure/alien/resin/bullet_act(obj/item/projectile/Proj)
+/obj/structure/alien/air_plant/bullet_act(obj/item/projectile/Proj)
+	. = ..()
+	if(. == PROJECTILE_ABSORBED || . == PROJECTILE_FORCE_MISS)
+		return
 	health -= Proj.damage
-	..()
 	healthcheck()
-	return
 
 /obj/structure/alien/resin/ex_act(severity)
 	switch(severity)
@@ -98,11 +99,6 @@
 	return
 
 /obj/structure/alien/resin/blob_act()
-	health-=50
-	healthcheck()
-	return
-
-/obj/structure/alien/resin/meteorhit()
 	health-=50
 	healthcheck()
 	return
@@ -285,7 +281,7 @@
 		healthcheck()
 
 /obj/structure/alien/weeds/bullet_act(obj/item/projectile/Proj)
-	return -1
+	return PROJECTILE_FORCE_MISS
 
 /*/obj/structure/alien/weeds/burn(fi_amount)
 	if (fi_amount > 18000)
@@ -466,6 +462,7 @@
 		if(GROWN)
 			var/mob/living/carbon/xenomorph/facehugger/FH = new /mob/living/carbon/xenomorph/facehugger(get_turf(src))
 			FH.key = user.key
+			FH.mind.add_antag_hud(ANTAG_HUD_ALIEN, "hudalien", FH)
 			to_chat(FH, "<span class='notice'>You are now a facehugger, go hug some human faces <3</span>")
 			icon_state = "egg_hatched"
 			flick("egg_opening", src)
@@ -473,11 +470,12 @@
 			spawn(15)
 				status = BURST
 
-/obj/structure/alien/egg/bullet_act(obj/item/projectile/Proj)
+/obj/structure/alien/air_plant/bullet_act(obj/item/projectile/Proj)
+	. = ..()
+	if(. == PROJECTILE_ABSORBED || . == PROJECTILE_FORCE_MISS)
+		return
 	health -= Proj.damage
-	..()
 	healthcheck()
-	return
 
 /obj/structure/alien/egg/process()
 	if(prob(10))
@@ -579,10 +577,11 @@
 	return
 
 /obj/structure/alien/air_plant/bullet_act(obj/item/projectile/Proj)
+	. = ..()
+	if(. == PROJECTILE_ABSORBED || . == PROJECTILE_FORCE_MISS)
+		return
 	health -= Proj.damage
-	..()
 	healthcheck()
-	return
 
 /obj/structure/alien/air_plant/fire_act(datum/gas_mixture/air, exposed_temperature, exposed_volume)
 	if(exposed_temperature > 500)

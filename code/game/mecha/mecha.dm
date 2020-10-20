@@ -18,6 +18,7 @@
 	unacidable = 1 //and no deleting hoomans inside
 	layer = MOB_LAYER //icon draw layer
 	infra_luminosity = 15 //byond implementation is bugged.
+	hud_possible = list(DIAG_STAT_HUD, DIAG_BATT_HUD, DIAG_MECH_HUD)
 	var/initial_icon = null //Mech type for resetting icon. Only used for reskinning kits (see custom items)
 	var/can_move = 1
 	var/mob/living/carbon/occupant = null
@@ -25,6 +26,7 @@
 	var/dir_in = 2//What direction will the mech face when entered/powered on? Defaults to South.
 	var/step_energy_drain = 10
 	var/health = 300 //health is health
+	var/maxhealth = 300
 	var/deflect_chance = 10 //chance to deflect the incoming projectiles, hits, or lesser the effect of ex_act.
 	//the values in this list show how much damage will pass through, not how much will be absorbed.
 	var/list/damage_absorption = list("brute"=0.8,"fire"=1.2,"bullet"=0.9,"laser"=1,"energy"=1,"bomb"=1)
@@ -88,6 +90,13 @@
 	log_message("[src.name] created.")
 	loc.Entered(src)
 	mechas_list += src //global mech list
+	maxhealth = health
+	prepare_huds()
+	var/datum/atom_hud/data/diagnostic/diag_hud = global.huds[DATA_HUD_DIAGNOSTIC]
+	diag_hud.add_to_hud(src)
+	diag_hud_set_mechhealth()
+	diag_hud_set_mechcell()
+	diag_hud_set_mechstat()
 
 /obj/mecha/Destroy()
 	poi_list -= src
@@ -365,6 +374,7 @@
 	pr_internal_damage.start()
 	log_append_to_last("Internal damage of type [int_dam_flag].",1)
 	occupant.playsound_local(null, 'sound/machines/warning-buzzer.ogg', VOL_EFFECTS_MASTER, null, FALSE)
+	diag_hud_set_mechstat()
 	return
 
 /obj/mecha/proc/clearInternalDamage(int_dam_flag)
@@ -377,6 +387,7 @@
 			occupant_message("<font color='blue'><b>Internal fire extinquished.</b></font>")
 		if(MECHA_INT_TANK_BREACH)
 			occupant_message("<font color='blue'><b>Damaged internal tank has been sealed.</b></font>")
+	diag_hud_set_mechstat()
 	return
 
 
@@ -402,6 +413,7 @@
 /obj/mecha/proc/update_health()
 	if(src.health > 0)
 		src.spark_system.start()
+		diag_hud_set_mechhealth()
 	else
 		src.destroy()
 	return
@@ -443,26 +455,25 @@
 	return
 
 
-/obj/mecha/attack_animal(mob/living/simple_animal/user)
-	src.log_message("Attack by simple animal. Attacker - [user].",1)
+/obj/mecha/attack_animal(mob/living/simple_animal/attacker)
+	src.log_message("Attack by simple animal. Attacker - [attacker].",1)
 	..()
 
-	if(user.melee_damage_upper == 0)
-		user.emote("[user.friendly] [src]")
+	if(attacker.melee_damage == 0)
+		attacker.emote("[attacker.friendly] [src]")
 	else
 		if(!prob(src.deflect_chance))
-			var/damage = rand(user.melee_damage_lower, user.melee_damage_upper)
+			var/damage = attacker.melee_damage
 			src.take_damage(damage)
 			src.check_for_internal_damage(list(MECHA_INT_TEMP_CONTROL,MECHA_INT_TANK_BREACH,MECHA_INT_CONTROL_LOST))
-			visible_message("<span class='warning'><B>[user]</B> [user.attacktext] [src]!</span>")
-			user.attack_log += text("\[[time_stamp()]\] <font color='red'>attacked [src.name]</font>")
+			visible_message("<span class='warning'><B>[attacker]</B> [attacker.attacktext] [src]!</span>")
+			attacker.attack_log += "\[[time_stamp()]\] <font color='red'>attacked [src.name]</font>"
 		else
 			src.log_append_to_last("Armor saved.")
 			playsound(src, 'sound/weapons/slash.ogg', VOL_EFFECTS_MASTER)
-			src.occupant_message("<span class='notice'>The [user]'s attack is stopped by the armor.</span>")
-			visible_message("<span class='notice'>The [user] rebounds off [src.name]'s armor!</span>")
-			user.attack_log += text("\[[time_stamp()]\] <font color='red'>attacked [src.name]</font>")
-	return
+			src.occupant_message("<span class='notice'>The [attacker]'s attack is stopped by the armor.</span>")
+			visible_message("<span class='notice'>The [attacker] rebounds off [src.name]'s armor!</span>")
+			attacker.attack_log += "\[[time_stamp()]\] <font color='red'>attacked [src.name]</font>"
 
 /obj/mecha/hitby(atom/movable/AM, datum/thrownthing/throwingdatum) //wrapper
 	..()
@@ -583,13 +594,11 @@
 	take_damage(10, "brute")
 	return
 
-//TODO
-/obj/mecha/meteorhit()
-	return ex_act(rand(1,3))//should do for now
 
 /obj/mecha/emp_act(severity)
 	if(get_charge())
 		use_power((cell.charge/2)/severity)
+		diag_hud_set_mechcell()
 		take_damage(50 / severity,"energy")
 	src.log_message("EMP detected",1)
 	check_for_internal_damage(list(MECHA_INT_FIRE,MECHA_INT_TEMP_CONTROL,MECHA_INT_CONTROL_LOST,MECHA_INT_SHORT_CIRCUIT),1)
@@ -696,6 +705,7 @@
 		else if(state==4 && src.cell)
 			state=3
 			to_chat(user, "You screw the cell in place")
+		diag_hud_set_mechcell()
 		return
 
 	else if(istype(W, /obj/item/weapon/stock_parts/cell))
@@ -708,9 +718,10 @@
 				src.log_message("Powercell installed")
 			else
 				to_chat(user, "There's already a powercell installed.")
+			diag_hud_set_mechcell()
 		return
 
-	else if(iswelder(W) && user.a_intent != "hurt")
+	else if(iswelder(W) && user.a_intent != INTENT_HARM)
 		var/obj/item/weapon/weldingtool/WT = W
 		user.SetNextMove(CLICK_CD_MELEE)
 		if (WT.use(0,user))
@@ -958,7 +969,7 @@
 	set name = "Enter Exosuit"
 	set src in oview(1)
 
-	if (usr.stat || !ishuman(usr))
+	if (usr.incapacitated() || !ishuman(usr))
 		return
 	if (usr.buckled)
 		to_chat(usr,"<span class='warning'>You can't climb into the exosuit while buckled!</span>")
@@ -1095,7 +1106,7 @@
 	if(usr!=src.occupant)
 		return
 	//pr_update_stats.start()
-	src.occupant << browse(entity_ja(src.get_stats_html()), "window=exosuit")
+	src.occupant << browse(src.get_stats_html(), "window=exosuit")
 	return
 
 /*
@@ -1225,7 +1236,9 @@
 
 /obj/mecha/proc/get_stats_html()
 	var/output = {"<html>
-						<head><title>[src.name] data</title>
+						<head>
+						<meta http-equiv='Content-Type' content='text/html; charset=utf-8'>
+						<title>[src.name] data</title>
 						<style>
 						body {color: #00ff00; background: #000000; font-family:"Lucida Console",monospace; font-size: 12px;}
 						hr {border: 1px solid #0f0; color: #0f0; background-color: #0f0;}
@@ -1300,9 +1313,9 @@
 						<b>Powercell charge: </b>[isnull(cell_charge)?"No powercell installed":"[cell.percent()]%"]<br>
 						<b>Air source: </b>[use_internal_tank?"Internal Airtank":"Environment"]<br>
 						<b>Airtank pressure: </b>[tank_pressure]kPa<br>
-						<b>Airtank temperature: </b>[tank_temperature]&deg;K|[tank_temperature - T0C]&deg;C<br>
+						<b>Airtank temperature: </b>[tank_temperature] K|[tank_temperature - T0C]&deg;C<br>
 						<b>Cabin pressure: </b>[cabin_pressure>WARNING_HIGH_PRESSURE ? "<font color='red'>[cabin_pressure]</font>": cabin_pressure]kPa<br>
-						<b>Cabin temperature: </b> [return_temperature()]&deg;K|[return_temperature() - T0C]&deg;C<br>
+						<b>Cabin temperature: </b> [return_temperature()] K|[return_temperature() - T0C]&deg;C<br>
 						<b>Lights: </b>[lights?"on":"off"]<br>
 						[src.dna?"<b>DNA-locked:</b><br> <span style='font-size:10px;letter-spacing:-1px;'>[src.dna]</span> \[<a href='?src=\ref[src];reset_dna=1'>Reset</a>\]<br>":null]
 					"}
@@ -1371,7 +1384,7 @@
 
 
 /obj/mecha/proc/get_log_html()
-	var/output = "<html><head><title>[src.name] Log</title></head><body style='font: 13px 'Courier', monospace;'>"
+	var/output = "<html><head><meta http-equiv='Content-Type' content='text/html; charset=utf-8'><title>[src.name] Log</title></head><body style='font: 13px 'Courier', monospace;'>"
 	for(var/list/entry in log)
 		output += {"<div style='font-weight: bold;'>[time2text(entry["time"],"DDD MMM DD hh:mm:ss")] [game_year]</div>
 						<div style='margin-left:15px; margin-bottom:10px;'>[entry["message"]]</div>
@@ -1383,7 +1396,9 @@
 /obj/mecha/proc/output_access_dialog(obj/item/weapon/card/id/id_card, mob/user)
 	if(!id_card || !user) return
 	var/output = {"<html>
-						<head><style>
+						<head>
+						<meta http-equiv='Content-Type' content='text/html; charset=utf-8'>
+						<style>
 						h1 {font-size:15px;margin-bottom:4px;}
 						body {color: #00ff00; background: #000000; font-family:"Courier New", Courier, monospace; font-size: 12px;}
 						a {color:#0f0;}
@@ -1401,7 +1416,7 @@
 		output += "[a_name] - <a href='?src=\ref[src];add_req_access=[a];user=\ref[user];id_card=\ref[id_card]'>Add</a><br>"
 	output += "<hr><a href='?src=\ref[src];finish_req_access=1;user=\ref[user]'>Finish</a> <font color='red'>(Warning! The ID upload panel will be locked. It can be unlocked only through Exosuit Interface.)</font>"
 	output += "</body></html>"
-	user << browse(entity_ja(output), "window=exosuit_add_access")
+	user << browse(output, "window=exosuit_add_access")
 	onclose(user, "exosuit_add_access")
 	return
 
@@ -1409,6 +1424,7 @@
 	if(!id_card || !user) return
 	var/output = {"<html>
 						<head>
+						<meta http-equiv='Content-Type' content='text/html; charset=utf-8'>
 						<style>
 						body {color: #00ff00; background: #000000; font-family:"Courier New", Courier, monospace; font-size: 12px;}
 						a {padding:2px 5px; background:#32CD32;color:#000;display:block;margin:2px;text-align:center;text-decoration:none;}
@@ -1420,7 +1436,7 @@
 						[(state>0) ?"<a href='?src=\ref[src];set_internal_tank_valve=1;user=\ref[user]'>Set Cabin Air Pressure</a>":null]
 						</body>
 						</html>"}
-	user << browse(entity_ja(output), "window=exosuit_maint_console")
+	user << browse(output, "window=exosuit_maint_console")
 	onclose(user, "exosuit_maint_console")
 	return
 
@@ -1457,14 +1473,14 @@
 		send_byjax(src.occupant,"exosuit.browser","content",src.get_stats_part())
 		return
 	if(href_list["close"])
-		occupant.playsound_local(null, 'sound/mecha/UI_SCI-FI_Tone_10_stereo.ogg', VOL_EFFECTS_MASTER, null, FALSE)
+		occupant.playsound_local(null, 'sound/mecha/UI_SCI-FI_Tone_10.ogg', VOL_EFFECTS_MASTER, null, FALSE)
 		return
-	if(usr.stat > 0)
+	if(usr.incapacitated())
 		return
 	var/datum/topic_input/F = new /datum/topic_input(href,href_list)
 	if(href_list["select_equip"])
 		if(usr != src.occupant)	return
-		occupant.playsound_local(null, 'sound/mecha/UI_SCI-FI_Tone_10_stereo.ogg', VOL_EFFECTS_MASTER, null, FALSE)
+		occupant.playsound_local(null, 'sound/mecha/UI_SCI-FI_Tone_10.ogg', VOL_EFFECTS_MASTER, null, FALSE)
 		var/obj/item/mecha_parts/mecha_equipment/equip = F.getObj("select_equip")
 		if(equip)
 			src.selected = equip
@@ -1479,29 +1495,29 @@
 		return
 	if(href_list["toggle_lights"])
 		if(usr != src.occupant)	return
-		occupant.playsound_local(null, 'sound/mecha/UI_SCI-FI_Tone_10_stereo.ogg', VOL_EFFECTS_MASTER, null, FALSE)
+		occupant.playsound_local(null, 'sound/mecha/UI_SCI-FI_Tone_10.ogg', VOL_EFFECTS_MASTER, null, FALSE)
 		src.toggle_lights()
 		return
 	if(href_list["toggle_airtank"])
 		if(usr != src.occupant)	return
-		occupant.playsound_local(null, 'sound/mecha/UI_SCI-FI_Tone_10_stereo.ogg', VOL_EFFECTS_MASTER, null, FALSE)
+		occupant.playsound_local(null, 'sound/mecha/UI_SCI-FI_Tone_10.ogg', VOL_EFFECTS_MASTER, null, FALSE)
 		src.toggle_internal_tank()
 		return
 	if(href_list["rmictoggle"])
 		if(usr != src.occupant)	return
-		occupant.playsound_local(null, 'sound/mecha/UI_SCI-FI_Tone_10_stereo.ogg', VOL_EFFECTS_MASTER, null, FALSE)
+		occupant.playsound_local(null, 'sound/mecha/UI_SCI-FI_Tone_10.ogg', VOL_EFFECTS_MASTER, null, FALSE)
 		radio.broadcasting = !radio.broadcasting
 		send_byjax(src.occupant,"exosuit.browser","rmicstate",(radio.broadcasting?"Engaged":"Disengaged"))
 		return
 	if(href_list["rspktoggle"])
 		if(usr != src.occupant)	return
-		occupant.playsound_local(null, 'sound/mecha/UI_SCI-FI_Tone_10_stereo.ogg', VOL_EFFECTS_MASTER, null, FALSE)
+		occupant.playsound_local(null, 'sound/mecha/UI_SCI-FI_Tone_10.ogg', VOL_EFFECTS_MASTER, null, FALSE)
 		radio.listening = !radio.listening
 		send_byjax(src.occupant,"exosuit.browser","rspkstate",(radio.listening?"Engaged":"Disengaged"))
 		return
 	if(href_list["rfreq"])
 		if(usr != src.occupant)	return
-		occupant.playsound_local(null, 'sound/mecha/UI_SCI-FI_Tone_10_stereo.ogg', VOL_EFFECTS_MASTER, null, FALSE)
+		occupant.playsound_local(null, 'sound/mecha/UI_SCI-FI_Tone_10.ogg', VOL_EFFECTS_MASTER, null, FALSE)
 		var/new_frequency = (radio.frequency + F.getNum("rfreq"))
 		if (!radio.freerange || (radio.frequency < 1200 || radio.frequency > 1600))
 			new_frequency = sanitize_frequency(new_frequency)
@@ -1510,28 +1526,28 @@
 		return
 	if(href_list["port_disconnect"])
 		if(usr != src.occupant)	return
-		occupant.playsound_local(null, 'sound/mecha/UI_SCI-FI_Tone_10_stereo.ogg', VOL_EFFECTS_MASTER, null, FALSE)
+		occupant.playsound_local(null, 'sound/mecha/UI_SCI-FI_Tone_10.ogg', VOL_EFFECTS_MASTER, null, FALSE)
 		src.disconnect_from_port()
 		return
 	if (href_list["port_connect"])
 		if(usr != src.occupant)	return
-		occupant.playsound_local(null, 'sound/mecha/UI_SCI-FI_Tone_10_stereo.ogg', VOL_EFFECTS_MASTER, null, FALSE)
+		occupant.playsound_local(null, 'sound/mecha/UI_SCI-FI_Tone_10.ogg', VOL_EFFECTS_MASTER, null, FALSE)
 		src.connect_to_port()
 		return
 	if (href_list["view_log"])
 		if(usr != src.occupant)	return
-		occupant.playsound_local(null, 'sound/mecha/UI_SCI-FI_Tone_10_stereo.ogg', VOL_EFFECTS_MASTER, null, FALSE)
-		src.occupant << browse(entity_ja(src.get_log_html()), "window=exosuit_log")
+		occupant.playsound_local(null, 'sound/mecha/UI_SCI-FI_Tone_10.ogg', VOL_EFFECTS_MASTER, null, FALSE)
+		src.occupant << browse(src.get_log_html(), "window=exosuit_log")
 		onclose(occupant, "exosuit_log")
 		return
 	if (href_list["change_name"])
 		if(usr != src.occupant)	return
 		var/newname = sanitize_safe(input(occupant,"Choose new exosuit name","Rename exosuit",initial(name)) as text, MAX_NAME_LEN)
 		if(newname)
-			occupant.playsound_local(null, 'sound/mecha/UI_SCI-FI_Tone_Deep_Wet_22_stereo_complite.ogg', VOL_EFFECTS_MASTER, null, FALSE)
+			occupant.playsound_local(null, 'sound/mecha/UI_SCI-FI_Tone_Deep_Wet_22_complite.ogg', VOL_EFFECTS_MASTER, null, FALSE)
 			name = newname
 		else
-			occupant.playsound_local(null, 'sound/mecha/UI_SCI-FI_Tone_Deep_Wet_15_stereo_error.ogg', VOL_EFFECTS_MASTER, null, FALSE)
+			occupant.playsound_local(null, 'sound/mecha/UI_SCI-FI_Tone_Deep_Wet_15_error.ogg', VOL_EFFECTS_MASTER, null, FALSE)
 		return
 	if (href_list["toggle_id_upload"])
 		if(usr != src.occupant)	return
@@ -1585,36 +1601,36 @@
 		add_req_access = 0
 		var/mob/user = F.getMob("user")
 		user << browse(null,"window=exosuit_add_access")
-		user.playsound_local(null, 'sound/mecha/UI_SCI-FI_Tone_Deep_Wet_22_stereo_complite.ogg', VOL_EFFECTS_MASTER, null, FALSE)
+		user.playsound_local(null, 'sound/mecha/UI_SCI-FI_Tone_Deep_Wet_22_complite.ogg', VOL_EFFECTS_MASTER, null, FALSE)
 		return
 	if(href_list["dna_lock"])
 		if(usr != src.occupant)	return
 		if(istype(occupant, /mob/living/carbon/brain))
 			occupant_message("You are a brain. No.")
-			occupant.playsound_local(null, 'sound/mecha/UI_SCI-FI_Tone_Deep_Wet_15_stereo_error.ogg', VOL_EFFECTS_MASTER, null, FALSE)
+			occupant.playsound_local(null, 'sound/mecha/UI_SCI-FI_Tone_Deep_Wet_15_error.ogg', VOL_EFFECTS_MASTER, null, FALSE)
 			return
 		if(src.occupant)
 			src.dna = src.occupant.dna.unique_enzymes
 			src.occupant_message("You feel a prick as the needle takes your DNA sample.")
-			occupant.playsound_local(null, 'sound/mecha/UI_SCI-FI_Compute_01_Wet_stereo.ogg', VOL_EFFECTS_MASTER, null, FALSE)
+			occupant.playsound_local(null, 'sound/mecha/UI_SCI-FI_Compute_01_Wet.ogg', VOL_EFFECTS_MASTER, null, FALSE)
 	if(href_list["reset_dna"])
 		if(usr != src.occupant)	return
-		occupant.playsound_local(null, 'sound/mecha/UI_SCI-FI_Tone_10_stereo.ogg', VOL_EFFECTS_MASTER, null, FALSE)
+		occupant.playsound_local(null, 'sound/mecha/UI_SCI-FI_Tone_10.ogg', VOL_EFFECTS_MASTER, null, FALSE)
 		src.dna = null
 	if(href_list["repair_int_control_lost"])
 		if(usr != src.occupant)	return
 		src.occupant_message("Recalibrating coordination system.")
 		src.log_message("Recalibration of coordination system started.")
-		occupant.playsound_local(null, 'sound/mecha/UI_SCI-FI_Compute_01_Wet_stereo.ogg', VOL_EFFECTS_MASTER, null, FALSE)
+		occupant.playsound_local(null, 'sound/mecha/UI_SCI-FI_Compute_01_Wet.ogg', VOL_EFFECTS_MASTER, null, FALSE)
 		var/T = src.loc
 		if(do_after(100))
 			if(T == src.loc)
 				src.clearInternalDamage(MECHA_INT_CONTROL_LOST)
-				occupant.playsound_local(null, 'sound/mecha/UI_SCI-FI_Tone_Deep_Wet_22_stereo_complite.ogg', VOL_EFFECTS_MASTER, null, FALSE)
+				occupant.playsound_local(null, 'sound/mecha/UI_SCI-FI_Tone_Deep_Wet_22_complite.ogg', VOL_EFFECTS_MASTER, null, FALSE)
 				src.occupant_message("<font color='blue'>Recalibration successful.</font>")
 				src.log_message("Recalibration of coordination system finished with 0 errors.")
 			else
-				occupant.playsound_local(null, 'sound/mecha/UI_SCI-FI_Tone_Deep_Wet_15_stereo_error.ogg', VOL_EFFECTS_MASTER, null, FALSE)
+				occupant.playsound_local(null, 'sound/mecha/UI_SCI-FI_Tone_Deep_Wet_15_error.ogg', VOL_EFFECTS_MASTER, null, FALSE)
 				src.occupant_message("<font color='red'>Recalibration failed.</font>")
 				src.log_message("Recalibration of coordination system failed with 1 error.",1)
 
@@ -1698,12 +1714,14 @@
 /obj/mecha/proc/dynusepower(amount)
 	if(get_charge())
 		cell.use(amount)
+		diag_hud_set_mechcell()
 		return 1
 	return 0
 
 /obj/mecha/proc/give_power(amount)
 	if(!isnull(get_charge()))
 		cell.give(amount)
+		diag_hud_set_mechcell()
 		return 1
 	return 0
 
@@ -1792,6 +1810,7 @@
 			mecha.spark_system.start()
 			mecha.cell.charge -= min(20, mecha.cell.charge)
 			mecha.cell.maxcharge -= min(20, mecha.cell.maxcharge)
+			mecha.diag_hud_set_mechcell()
 	return
 
 /datum/global_iterator/mecha_light/process(var/obj/mecha/mecha)

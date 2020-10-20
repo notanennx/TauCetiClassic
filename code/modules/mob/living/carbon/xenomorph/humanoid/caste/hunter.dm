@@ -110,7 +110,7 @@
 		to_chat(src, "<span class='alertalien'>It is unsafe to leap without gravity!</span>")
 		//It's also extremely buggy visually, so it's balance+bugfix
 		return
-	if(lying)
+	if(incapacitated())
 		return
 
 	else //Maybe uses plasma in the future, although that wouldn't make any sense...
@@ -140,7 +140,7 @@
 		step_towards(src, L)
 		toggle_leap(FALSE)
 		pounce_cooldown = TRUE
-		addtimer(VARSET_CALLBACK(src, pounce_cooldown, FALSE), pounce_cooldown_time)
+		VARSET_IN(src, pounce_cooldown, FALSE, pounce_cooldown_time)
 	else if(hit_atom.density)
 		visible_message("<span class='danger'>[src] smashes into [hit_atom]!</span>", "<span class='alertalien'>You smashes into [hit_atom]!</span>")
 		weakened = 2

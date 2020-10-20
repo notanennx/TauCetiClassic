@@ -32,7 +32,7 @@
 	client.screen = list()				//remove hud items just in case
 	if(hud_used)
 		qdel(hud_used)		//remove the hud objects
-	hud_used = new /datum/hud(src)
+	hud_used = new hud_type(src)
 	client.pixel_x = 0
 	client.pixel_y = 0
 	next_move = 1
@@ -57,6 +57,9 @@
 	blocker.layer = ABOVE_HUD_LAYER
 	blocker.plane = ABOVE_HUD_PLANE
 	blocker.mouse_opacity = 0
+
+	reload_huds()
+	add_click_catcher()
 
 	client.screen += blocker
 

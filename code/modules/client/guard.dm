@@ -12,7 +12,7 @@
 
 	var/list/chat_data = list("cookie_match", "charset")
 	var/chat_processed = FALSE
-	
+
 	var/first_entry = FALSE
 
 	var/time_velocity_spawn
@@ -31,7 +31,7 @@
 /datum/guard/proc/trigger_init()
 	if(holder && isnum(holder.player_ingame_age) && holder.player_ingame_age < GUARD_CHECK_AGE)
 		load_geoip() // this may takes a few minutes in bad case
-		
+
 		if(!tests_processed)
 			do_tests()
 
@@ -85,7 +85,7 @@
 
 		geoip_weight += geoip_data["mobile"]  ? 0.2 : 0
 
-		geoip_weight += geoip_data["ipintel"]>0 ? geoip_data["ipintel"] : 0
+		geoip_weight += geoip_data["ipintel"]>=0.9 ? geoip_data["ipintel"] : 0
 
 		// todo: button to force new geoip
 		new_report += {"<div class='block'><h3>GeoIP ([geoip_weight]):</h3>
@@ -125,20 +125,22 @@
 		total_alert_weight += cookie_weight
 
 	/* ru-specific, not sure about it. 513/post-IE should be removed */
+	/*
 	if(length(config.guard_whitelisted_country_codes) && chat_processed)
 		var/charset_weight = 0
 		if(!(geoip_data["countryCode"] in config.guard_whitelisted_country_codes) && chat_data["charset"] == "windows1251")
 			charset_weight += 1
 
 			if(first_entry)
-				charset_weight += 1 // how he know
-			
+				charset_weight += 0.5 // how he know
+
 			new_report += {"<div class='block'><h3>Charset ([charset_weight]):</h3>
 			Charset not ordinary for country[first_entry ? " <b>in the first entry</b>" : ""].</div>"}
 
 			new_short_report += "Charset test failed(tw: [charset_weight]); "
 
 		total_alert_weight += charset_weight
+	*/
 
 	/* database related accounts */
 	if((length(holder.related_accounts_cid) && holder.related_accounts_cid != "Requires database") || (length(holder.related_accounts_ip) && holder.related_accounts_ip != "Requires database"))
@@ -163,7 +165,7 @@
 
 		if(isnum(holder.player_age) && holder.player_age > 60)
 			allowed_amount++
-		
+
 		multicid_weight += min(((holder.prefs.cid_list.len - allowed_amount) * 0.35), 2) // new account, should not be many. 4 cids in the first hour -> +1 weight
 
 		new_report += {"<div class='block'><h3>Differents CID's ([multicid_weight]):</h3>
@@ -219,8 +221,8 @@
 	if(geoip_processed && !force_reload)
 		return
 
-	var/cache_path = ("data/player_saves/[copytext(holder.ckey,1,2)]/[holder.ckey]/geoip.sav")
-	
+	var/cache_path = ("data/player_saves/[holder.ckey[1]]/[holder.ckey]/geoip.sav")
+
 	if(fexists(cache_path) && !force_reload)
 		var/savefile/S = new /savefile(cache_path)
 		S["geoip"] >> geoip_data
@@ -252,7 +254,7 @@
 /datum/guard/proc/get_geoip_data(url)
 	var/attempts = 3
 	var/static/geoip_failed_attempts = 0
-	
+
 	if(geoip_failed_attempts > 15)
 		log_debug("GUARD: multiple get_geoip fails, geoip disabled for round")
 		message_admins("GUARD: multiple get_geoip fails, geoip disabled for round", R_DEBUG)
@@ -270,6 +272,10 @@
 	return
 
 /datum/guard/proc/process_autoban()
+
+	if(!dbcon.IsConnected())
+		message_admins("GUARD: autoban for [holder.ckey] not processed due to database connection problem.")
+		return
 
 	var/reason = config.guard_autoban_reason
 
@@ -296,7 +302,7 @@
 		ban[BANKEY_REASON] = "(AutoBan)(GUARD)"
 		ban[BANKEY_CKEY] = holder.ckey
 		ban[BANKEY_MSG] = "[reason]"
-		
+
 		if(!get_stickyban_from_ckey(holder.ckey))
 			SSstickyban.add(holder.ckey, ban)
 

@@ -13,7 +13,9 @@
 	empulse(target, 1, 1)
 	return 1
 
-
+/obj/item/projectile/ion/small/on_hit(atom/target, def_zone = BP_CHEST, blocked = 0)
+	empulse(target, 0.5, 0.5)
+	return 1
 
 /obj/item/projectile/bullet/gyro
 	name ="explosive bolt"
@@ -26,8 +28,6 @@
 /obj/item/projectile/bullet/gyro/on_hit(atom/target, def_zone = BP_CHEST, blocked = 0)
 	explosion(target, -1, 0, 2)
 	return 1
-
-
 
 /obj/item/projectile/temp
 	name = "freeze beam"
@@ -52,8 +52,6 @@
 	name = "heat beam"
 	temperature = 400
 
-
-
 /obj/item/projectile/meteor
 	name = "meteor"
 	icon = 'icons/obj/meteor.dmi'
@@ -76,7 +74,7 @@
 	if(src)//Do not add to this if() statement, otherwise the meteor won't delete them
 		if(A)
 
-			A.meteorhit(src)
+			A.ex_act(2)
 			playsound(src, 'sound/effects/meteorimpact.ogg', VOL_EFFECTS_MASTER, 40)
 
 			for(var/mob/M in range(10, src))
@@ -86,8 +84,6 @@
 			return 1
 	else
 		return 0
-
-
 
 /obj/item/projectile/energy/floramut
 	name = "alpha somatoray"
@@ -128,8 +124,6 @@
 	else
 		return 1
 
-
-
 /obj/item/projectile/energy/florayield
 	name = "beta somatoray"
 	icon_state = "energy2"
@@ -149,8 +143,6 @@
 		to_chat(M, "<span class='notice'>The radiation beam dissipates harmlessly through your body.</span>")
 	else
 		return 1
-
-
 
 /obj/item/projectile/beam/mindflayer
 	name = "flayer ray"
@@ -177,11 +169,8 @@
 	edge = 0
 
 /obj/item/projectile/missile/on_hit(atom/target, def_zone = BP_CHEST, blocked = 0)
-	target.ex_act(1)
 	explosion(target, 1,2,4,5)
 	return 1
-
-
 
 /obj/item/projectile/missile/emp
 	damage = 10
@@ -254,7 +243,6 @@
 		to_chat(H, "<span class='warning'>You feel the acid on your skin!</span>")
 		return
 	..()
-
 
 /obj/item/projectile/bullet/scrap //
 	icon_state = "scrap_shot"
@@ -358,7 +346,6 @@
 		A.set_light(1, 1, l_color=term_col)
 		A.alpha = 128
 
-
 // Return temperature if it was possible to measure,
 // "NONE" otherwise.
 /obj/item/projectile/pyrometer/proc/measure_temperature(atom/target)
@@ -401,7 +388,7 @@
 	if(display_fahrenheit)
 		temp_string += " [(temp_celsium * 1.8) + 32]&deg;F"
 	if(display_kelvin)
-		temp_string += " [temp_celsium + T0C]&deg;K"
+		temp_string += " [temp_celsium + T0C] K"
 	temp_string += "</span>\""
 
 	firer.visible_message(temp_string)

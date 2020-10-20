@@ -15,7 +15,7 @@
 	var/maxcopies = 10	//how many copies can be copied at once- idea shamelessly stolen from bs12's copier!
 
 /obj/machinery/photocopier/ui_interact(mob/user)
-	var/dat = "Photocopier<BR><BR>"
+	var/dat = ""
 	if(copy || photocopy || bundle)
 		dat += "<a href='byond://?src=\ref[src];remove=1'>Remove Paper</a><BR>"
 		if(toner)
@@ -30,7 +30,11 @@
 	dat += "Current toner level: [toner]"
 	if(!toner)
 		dat +="<BR>Please insert a new toner cartridge!"
-	user << browse(entity_ja(dat), "window=copier")
+
+	var/datum/browser/popup = new(user, "copier", "Photocopier")
+	popup.set_content(dat)
+	popup.open()
+
 	onclose(user, "copier")
 
 /obj/machinery/photocopier/is_operational_topic()
@@ -202,7 +206,7 @@
 		P.info = "<font color = #101010>"
 	else			//no toner? shitty copies for you!
 		P.info = "<font color = #808080>"
-	var/copied = html_decode(copy.info)
+	var/copied = copy.info
 	copied = replacetext(copied, "<font face=\"[P.deffont]\" color=", "<font face=\"[P.deffont]\" nocolor=")	//state of the art techniques in action
 	copied = replacetext(copied, "<font face=\"[P.crayonfont]\" color=", "<font face=\"[P.crayonfont]\" nocolor=")	//This basically just breaks the existing color tag, which we need to do because the innermost tag takes priority.
 	copied = replacetext(copied, "<img ", "<img style=\"filter: gray;\"")	//IE is still IE
@@ -212,6 +216,7 @@
 	P.info += "</font>"//</font>
 	P.name = copy.name // -- Doohl
 	P.fields = copy.fields
+	P.sfields = copy.sfields
 	P.stamp_text = replacetext(copy.stamp_text, "color:", "nocolor:") // Russian server? I hope nobody will write this on paper
 	P.stamped = LAZYCOPY(copy.stamped)
 	P.ico = LAZYCOPY(copy.ico)
@@ -264,5 +269,6 @@
 /obj/item/device/toner
 	name = "toner cartridge"
 	icon_state = "tonercartridge"
+	w_class = ITEM_SIZE_SMALL
 	var/charges = 50
 	var/max_charges = 50

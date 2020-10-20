@@ -39,7 +39,7 @@
 		src.attack_hand(user)
 		return
 
-	if(istype(O, /obj/item/weapon/virusdish))
+	else if(istype(O, /obj/item/weapon/virusdish))
 
 		if(dish)
 			to_chat(user, "The dish tray is aleady full!")
@@ -53,6 +53,8 @@
 		nanomanager.update_uis(src)
 
 		src.attack_hand(user)
+	else
+		return ..()
 
 /obj/machinery/disease2/incubator/ui_interact(mob/user, ui_key = "main", datum/nanoui/ui = null)
 	var/data[0]
@@ -126,9 +128,9 @@
 
 /obj/machinery/disease2/incubator/proc/drain_reagent_from_beaker(reagent)
 	if(beaker.reagents.get_reagent_amount(reagent))
-		var/ammount = (min(beaker.reagents.get_reagent_amount(reagent), 5))
+		var/amount = (min(beaker.reagents.get_reagent_amount(reagent), 5))
 		beaker.reagents.remove_reagent(reagent, 5)
-		return ammount
+		return amount
 	return 0
 
 /obj/machinery/disease2/incubator/Topic(href, href_list)

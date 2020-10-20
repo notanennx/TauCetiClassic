@@ -385,7 +385,7 @@ var/list/turret_icons
 		if((I.force * 0.5) > 1) //if the force of impact dealt at least 1 damage, the turret gets pissed off
 			if(!attacked && !emagged)
 				attacked = TRUE
-				addtimer(VARSET_CALLBACK(src, attacked, FALSE), 60)
+				VARSET_IN(src, attacked, FALSE, 60)
 		..()
 
 /obj/machinery/porta_turret/emag_act(mob/user)
@@ -399,7 +399,7 @@ var/list/turret_icons
 	iconholder = TRUE
 	controllock = TRUE
 	enabled = FALSE //turns off the turret temporarily
-	addtimer(VARSET_CALLBACK(src, enabled, TRUE), 80) //8 seconds for the traitor to gtfo of the area before the turret decides to ruin his shit
+	VARSET_IN(src, enabled, TRUE, 80) //8 seconds for the traitor to gtfo of the area before the turret decides to ruin his shit
 	return TRUE
 
 /obj/machinery/porta_turret/proc/take_damage(force)
@@ -423,7 +423,7 @@ var/list/turret_icons
 	if(enabled)
 		if(!attacked && !emagged)
 			attacked = TRUE
-			addtimer(VARSET_CALLBACK(src, attacked, FALSE), 60)
+			VARSET_IN(src, attacked, FALSE, 60)
 
 	..()
 
@@ -443,7 +443,7 @@ var/list/turret_icons
 			emagged = TRUE
 
 		enabled = FALSE
-		addtimer(VARSET_CALLBACK(src, enabled, TRUE), rand(60, 600))
+		VARSET_IN(src, enabled, TRUE, rand(60, 600))
 
 	..()
 
@@ -624,7 +624,7 @@ var/list/turret_icons
 		if(last_fired || !raised)	//prevents rapid-fire shooting, unless it's been emagged
 			return
 		last_fired = TRUE
-		addtimer(VARSET_CALLBACK(src, last_fired, FALSE), shot_delay)
+		VARSET_IN(src, last_fired, FALSE, shot_delay)
 
 	var/turf/T = get_turf(src)
 	var/turf/U = get_turf(target)
@@ -662,18 +662,16 @@ var/list/turret_icons
 	else
 		playsound(src, shot_sound, VOL_EFFECTS_MASTER)
 
-/obj/machinery/porta_turret/attack_animal(mob/living/simple_animal/M)
+/obj/machinery/porta_turret/attack_animal(mob/living/simple_animal/attacker)
 	..()
-	if(M.melee_damage_upper == 0)
+	if(attacker.melee_damage == 0)
 		return
 	if(!(stat & BROKEN))
-		visible_message("<span class='danger'>[M] [M.attacktext] [src]!</span>")
-		M.attack_log += text("\[[time_stamp()]\] <font color='red'>attacked [src.name]</font>")
-		take_damage(M.melee_damage_upper)
+		visible_message("<span class='danger'>[attacker] [attacker.attacktext] [src]!</span>")
+		attacker.attack_log += text("\[[time_stamp()]\] <font color='red'>attacked [src.name]</font>")
+		take_damage(attacker.melee_damage)
 	else
-
-		to_chat(M, "<span class='red'>That object is useless to you.</span>")
-	return
+		to_chat(attacker, "<span class='red'>That object is useless to you.</span>")
 
 
 /obj/machinery/porta_turret/attack_alien(mob/living/carbon/xenomorph/humanoid/M)

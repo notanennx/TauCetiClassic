@@ -31,8 +31,7 @@ var/global/list/ai_list = list()
 var/global/list/ai_eyes_list = list()
 var/global/list/drone_list = list()
 
-var/global/list/med_hud_users = list() //list of all entities using a medical HUD.
-var/global/list/sec_hud_users = list() //list of all entities using a security HUD.
+var/global/list/gods_list = list()
 
 //feel free to add shit to lists below
 var/list/tachycardics = list("coffee", "inaprovaline", "hyperzine", "nitroglycerin", "thirteenloko", "nicotine")	//increase heart rate

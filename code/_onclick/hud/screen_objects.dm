@@ -67,7 +67,7 @@
 /obj/screen/storage/Click(location, control, params)
 	if(world.time <= usr.next_move)
 		return 1
-	if(usr.stat || usr.paralysis || usr.stunned || usr.weakened)
+	if(usr.incapacitated())
 		return 1
 	if (istype(usr.loc,/obj/mecha)) // stops inventory actions in a mech
 		return 1
@@ -126,65 +126,103 @@
 	icon_state = "zone_sel"
 	screen_loc = ui_zonesel
 	var/selecting = BP_CHEST
+	var/static/list/hover_overlays_cache = list()
+	var/hovering
 
 /obj/screen/zone_sel/Click(location, control,params)
 	var/list/PL = params2list(params)
 	var/icon_x = text2num(PL["icon-x"])
 	var/icon_y = text2num(PL["icon-y"])
-	var/old_selecting = selecting //We're only going to update_icon() if there's been a change
+	var/choice = get_zone_at(icon_x, icon_y)
+	if(!choice)
+		return 1
 
+	return set_selected_zone(choice, usr)
+
+/obj/screen/zone_sel/MouseEntered(location, control, params)
+	MouseMove(location, control, params)
+
+/obj/screen/zone_sel/MouseMove(location, control, params)
+	var/list/PL = params2list(params)
+	var/icon_x = text2num(PL["icon-x"])
+	var/icon_y = text2num(PL["icon-y"])
+	var/choice = get_zone_at(icon_x, icon_y)
+
+	if(hovering == choice)
+		return
+	vis_contents -= hover_overlays_cache[hovering]
+	hovering = choice
+
+	var/obj/effect/overlay/zone_sel/overlay_object = hover_overlays_cache[choice]
+	if(!overlay_object)
+		overlay_object = new
+		overlay_object.icon_state = "[choice]"
+		hover_overlays_cache[choice] = overlay_object
+	vis_contents += overlay_object
+
+/obj/effect/overlay/zone_sel
+	icon = 'icons/mob/screen_gen.dmi'
+	mouse_opacity = MOUSE_OPACITY_TRANSPARENT
+	alpha = 128
+	anchored = TRUE
+	layer = ABOVE_HUD_LAYER
+	plane = ABOVE_HUD_PLANE
+
+/obj/screen/zone_sel/MouseExited(location, control, params)
+	if(!isobserver(usr) && hovering)
+		vis_contents -= hover_overlays_cache[hovering]
+		hovering = null
+
+/obj/screen/zone_sel/proc/get_zone_at(icon_x, icon_y)
 	switch(icon_y)
 		if(1 to 3) //Feet
 			switch(icon_x)
 				if(10 to 15)
-					selecting = BP_R_LEG
+					return BP_R_LEG
 				if(17 to 22)
-					selecting = BP_L_LEG
-				else
-					return 1
+					return BP_L_LEG
 		if(4 to 9) //Legs
 			switch(icon_x)
 				if(10 to 15)
-					selecting = BP_R_LEG
+					return BP_R_LEG
 				if(17 to 22)
-					selecting = BP_L_LEG
-				else
-					return 1
+					return BP_L_LEG
 		if(10 to 13) //Arms and groin
 			switch(icon_x)
 				if(8 to 11)
-					selecting = BP_R_ARM
+					return BP_R_ARM
 				if(12 to 20)
-					selecting = BP_GROIN
+					return BP_GROIN
 				if(21 to 24)
-					selecting = BP_L_ARM
-				else
-					return 1
+					return BP_L_ARM
 		if(14 to 22) //Chest and arms to shoulders
 			switch(icon_x)
 				if(8 to 11)
-					selecting = BP_R_ARM
+					return BP_R_ARM
 				if(12 to 20)
-					selecting = BP_CHEST
+					return BP_CHEST
 				if(21 to 24)
-					selecting = BP_L_ARM
-				else
-					return 1
+					return BP_L_ARM
 		if(23 to 30) //Head, but we need to check for eye or mouth
 			if(icon_x in 12 to 20)
-				selecting = BP_HEAD
 				switch(icon_y)
 					if(23 to 24)
 						if(icon_x in 15 to 17)
-							selecting = O_MOUTH
+							return O_MOUTH
 					if(26) //Eyeline, eyes are on 15 and 17
 						if(icon_x in 14 to 18)
-							selecting = O_EYES
+							return O_EYES
 					if(25 to 27)
 						if(icon_x in 15 to 17)
-							selecting = O_EYES
+							return O_EYES
+				return BP_HEAD
 
-	if(old_selecting != selecting)
+/obj/screen/zone_sel/proc/set_selected_zone(choice, mob/user)
+	if(choice != selecting)
+		selecting = choice
+		var/mob/living/L = usr
+		if(istype(L))
+			L.update_combos()
 		update_icon()
 	return 1
 
@@ -240,42 +278,12 @@
 		if("mov_intent")
 			if(iscarbon(usr))
 				var/mob/living/carbon/C = usr
-				if(C.legcuffed)
-					to_chat(C, "<span class='notice'>You are legcuffed! You cannot run until you get [C.legcuffed] removed!</span>")
-					C.m_intent = "walk"	//Just incase
-					C.hud_used.move_intent.icon_state = "walking"
-					return 1
-				switch(usr.m_intent)
-					if("run")
-						usr.m_intent = "walk"
-						usr.hud_used.move_intent.icon_state = "walking"
-					if("walk")
-						usr.m_intent = "run"
-						usr.hud_used.move_intent.icon_state = "running"
-				if(istype(usr,/mob/living/carbon/xenomorph/humanoid))
-					usr.update_icons()
-		if("m_intent")
-			if(!usr.m_int)
-				switch(usr.m_intent)
-					if("run")
-						usr.m_int = "13,14"
-					if("walk")
-						usr.m_int = "14,14"
-					if("face")
-						usr.m_int = "15,14"
-			else
-				usr.m_int = null
-		if("walk")
-			usr.m_intent = "walk"
-			usr.m_int = "14,14"
-		if("face")
-			usr.m_intent = "face"
-			usr.m_int = "15,14"
-		if("run")
-			usr.m_intent = "run"
-			usr.m_int = "13,14"
+
+				C.set_m_intent(C.m_intent == MOVE_INTENT_WALK ? MOVE_INTENT_RUN : MOVE_INTENT_WALK)
+
 		if("Reset Machine")
 			usr.unset_machine()
+
 		if("internal")
 			if(iscarbon(usr))
 				var/mob/living/carbon/C = usr
@@ -320,7 +328,7 @@
 								for(var/i=1, i<tankcheck.len+1, ++i)
 									if(istype(tankcheck[i], /obj/item/weapon/tank))
 										var/obj/item/weapon/tank/t = tankcheck[i]
-										if (!isnull(t.manipulated_by) && t.manipulated_by != C.real_name && findtext(t.desc,breathes))
+										if (!isnull(t.manipulated_by) && t.manipulated_by != C.real_name && findtext(t.desc,breathes)) // why check for desc content? just why?
 											contents.Add(t.air_contents.total_moles)	//Someone messed with the tank and put unknown gasses
 											continue					//in it, so we're going to believe the tank is what it says it is
 										switch(breathes)
@@ -383,19 +391,19 @@
 								to_chat(C, "<span class='notice'>This mask doesn't support breathing through the tanks.</span>")
 					internal_switch = world.time + 16
 		if("act_intent")
-			usr.a_intent_change("right")
-		if("help")
-			usr.a_intent = "help"
+			usr.a_intent_change(INTENT_HOTKEY_RIGHT)
+		if(INTENT_HELP)
+			usr.a_intent = INTENT_HELP
 			usr.hud_used.action_intent.icon_state = "intent_help"
-		if("harm")
-			usr.a_intent = "hurt"
-			usr.hud_used.action_intent.icon_state = "intent_hurt"
-		if("grab")
-			usr.a_intent = "grab"
+		if(INTENT_HARM)
+			usr.a_intent = INTENT_HARM
+			usr.hud_used.action_intent.icon_state = "intent_harm"
+		if(INTENT_GRAB)
+			usr.a_intent = INTENT_GRAB
 			usr.hud_used.action_intent.icon_state = "intent_grab"
-		if("disarm")
-			usr.a_intent = "disarm"
-			usr.hud_used.action_intent.icon_state = "intent_disarm"
+		if(INTENT_PUSH)
+			usr.a_intent = INTENT_PUSH
+			usr.hud_used.action_intent.icon_state = "intent_push"
 		if("throw")
 			if(!usr.stat && isturf(usr.loc) && !usr.restrained())
 				usr:toggle_throw_mode()
@@ -651,7 +659,7 @@
 	// We don't even know if it's a middle click
 	if(world.time <= usr.next_move)
 		return 1
-	if(usr.stat || usr.paralysis || usr.stunned || usr.weakened)
+	if(usr.incapacitated())
 		return 1
 	if (istype(usr.loc,/obj/mecha)) // stops inventory actions in a mech
 		return 1
